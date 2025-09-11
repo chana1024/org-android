@@ -29,8 +29,7 @@ fun FileEditorScreen(
     LaunchedEffect(fileUriString) {
         fileUriString?.let { encodedUriString ->
             try {
-                val decodedUriString = URLDecoder.decode(encodedUriString, StandardCharsets.UTF_8.toString())
-                val uri = Uri.parse(decodedUriString)
+                val uri = Uri.parse(encodedUriString)
                 viewModel.loadFile(uri)
             } catch (e: Exception) {
                 // Handle invalid URI
