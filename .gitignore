@@ -1,0 +1,39 @@
+# Gradle
+.gradle/
+build/
+
+# Local properties
+local.properties
+
+# IDE files
+# .idea is ignored, but you can track specific files if you want
+# See https://youtrack.jetbrains.com/issue/IDEA-135185
+.idea/
+*.iml
+
+# Build artifacts
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# Captures
+captures/
+
+# Log files
+*.log
+
+# Keystore files
+*.jks
+*.keystore
+
+# Google Services
+google-services.json
+
+# Tool-specific
+.claude/
+.gemini/
+
+# OS files
+.DS_Store
