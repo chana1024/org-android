@@ -90,6 +90,10 @@ class FileEditorViewModel @Inject constructor(
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
     }
+
+    fun toggleViewMode() {
+        _uiState.value = _uiState.value.copy(isInViewMode = !_uiState.value.isInViewMode)
+    }
 }
 
 data class FileEditorUiState(
@@ -99,5 +103,6 @@ data class FileEditorUiState(
     val editedContent: String = "",
     val hasUnsavedChanges: Boolean = false,
     val saveSuccess: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val isInViewMode: Boolean = true
 )

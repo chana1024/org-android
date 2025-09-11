@@ -4,7 +4,9 @@ import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -13,6 +15,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.orgutil.R
+import com.orgutil.ui.components.OrgRenderer
 import com.orgutil.ui.viewmodel.FileEditorViewModel
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
@@ -61,7 +64,20 @@ fun FileEditorScreen(
                     }
                 },
                 actions = {
-                    if (uiState.hasUnsavedChanges && !uiState.isLoading) {
+                    // View mode toggle
+                    if (uiState.document != null && !uiState.isLoading) {
+                        IconButton(
+                            onClick = { viewModel.toggleViewMode() }
+                        ) {
+                            Icon(
+                                imageVector = if (uiState.isInViewMode) Icons.Default.Edit else Icons.Default.Visibility,
+                                contentDescription = if (uiState.isInViewMode) "Edit" else "View"
+                            )
+                        }
+                    }
+                    
+                    // Save button
+                    if (uiState.hasUnsavedChanges && !uiState.isLoading && !uiState.isInViewMode) {
                         IconButton(
                             onClick = { viewModel.saveFile() },
                             enabled = !uiState.isSaving
@@ -113,6 +129,7 @@ fun FileEditorScreen(
                 }
                 
                 uiState.document != null -> {
+                    val currentDocument = uiState.document
                     Column(
                         modifier = Modifier.fillMaxSize()
                     ) {
@@ -134,18 +151,29 @@ fun FileEditorScreen(
                             }
                         }
                         
-                        // Text editor
-                        OutlinedTextField(
-                            value = uiState.editedContent,
-                            onValueChange = { viewModel.updateContent(it) },
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                            label = { Text("Content") },
-                            placeholder = { Text("Enter your org-mode content here...") },
-                            maxLines = Int.MAX_VALUE,
-                            singleLine = false
-                        )
+                        // Content area - either rendered view or text editor
+                        if (uiState.isInViewMode) {
+                            // Rendered org-mode view
+                            if (currentDocument!=null) {
+                                OrgRenderer(
+                                    nodes = currentDocument.nodes,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        } else {
+                            // Text editor
+                            OutlinedTextField(
+                                value = uiState.editedContent,
+                                onValueChange = { viewModel.updateContent(it) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(16.dp),
+                                label = { Text("Content") },
+                                placeholder = { Text("Enter your org-mode content here...") },
+                                maxLines = Int.MAX_VALUE,
+                                singleLine = false
+                            )
+                        }
                     }
                 }
             }

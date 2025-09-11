@@ -1,0 +1,51 @@
+#+TITLE: Sample Org Document
+#+AUTHOR: Claude
+#+DATE: 2025-01-11
+
+* TODO Project Planning :work:planning:
+** DONE Research phase [#A]
+   - [X] Market analysis
+   - [X] Competitor research  
+   - [X] User interviews
+
+** IN-PROGRESS Development phase [#B]
+   - [ ] Design mockups
+   - [ ] Backend API
+   - [ ] Frontend implementation
+
+** TODO Testing phase [#C] :testing:
+   - [ ] Unit tests
+   - [ ] Integration tests
+   - [ ] User acceptance testing
+
+* DONE Personal Tasks :personal:
+** DONE Morning routine
+   Exercise for 30 minutes every morning to maintain good health.
+   
+** CANCELLED Learn new language
+   Decided to focus on current projects instead.
+
+* Notes and Ideas
+** Meeting Notes
+   Important points from today's standup:
+   1. Sprint goals achieved
+   2. New requirements discussion
+   3. Timeline adjustments needed
+
+** Random Thoughts
+   Some interesting ideas for future improvements:
+   - Mobile app companion
+   - Integration with calendar
+   - Automated reporting features
+
+* Technical Documentation
+** API Endpoints
+   #+BEGIN_SRC
+   GET /api/users
+   POST /api/users
+   PUT /api/users/:id
+   DELETE /api/users/:id
+   #+END_SRC
+
+** Database Schema
+   User table structure and relationships.
