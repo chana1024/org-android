@@ -1,0 +1,24 @@
+#+TITLE: Capture
+#+AUTHOR: OrgUtil
+#+DATE: 2025-01-11
+
+* 完成项目文档
+  :PROPERTIES:
+  :CREATED: 2025-01-11 15:30
+  :END:
+
+* 会议记录
+  :PROPERTIES:
+  :CREATED: 2025-01-11 16:15
+  :END:
+  讨论了项目进度
+  确定了下周目标
+  分配了任务
+
+* 购买清单
+  :PROPERTIES:
+  :CREATED: 2025-01-11 17:00
+  :END:
+  牛奶
+  面包
+  水果

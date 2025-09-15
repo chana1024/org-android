@@ -13,4 +13,5 @@ interface OrgFileRepository {
     suspend fun deleteOrgFile(uri: Uri): Result<Unit>
     suspend fun hasDocumentAccess(): Boolean
     suspend fun requestDocumentAccess(): Boolean
+    suspend fun appendToCaptureFile(content: String): Result<Unit>
 }

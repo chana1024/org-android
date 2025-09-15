@@ -10,6 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.compose.rememberNavController
@@ -22,13 +23,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        
+        val navigateTo = intent.getStringExtra("navigate_to")
+        
         setContent {
             OrgUtilTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    OrgUtilApp()
+                    OrgUtilApp(navigateTo = navigateTo)
                 }
             }
         }
@@ -36,8 +40,15 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun OrgUtilApp() {
+fun OrgUtilApp(navigateTo: String? = null) {
     val navController = rememberNavController()
+    
+    // Handle widget navigation
+    LaunchedEffect(navigateTo) {
+        if (navigateTo == "capture") {
+            navController.navigate("capture")
+        }
+    }
     
     Scaffold(
         modifier = Modifier.fillMaxSize()

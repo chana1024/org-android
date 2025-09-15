@@ -11,4 +11,5 @@ interface FileDataSource {
     suspend fun deleteFile(uri: Uri)
     suspend fun hasDocumentAccess(): Boolean
     suspend fun requestDocumentAccess(): Boolean
+    suspend fun appendToCaptureFile(content: String)
 }

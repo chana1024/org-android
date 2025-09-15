@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
@@ -29,6 +30,7 @@ import java.util.*
 @Composable
 fun FileListScreen(
     onFileSelected: (Uri) -> Unit,
+    onNavigateToCapture: () -> Unit,
     viewModel: FileListViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -57,15 +59,32 @@ fun FileListScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    documentTreeLauncher.launch(null)
-                }
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.End
             ) {
-                Icon(
-                    imageVector = Icons.Default.Folder,
-                    contentDescription = stringResource(R.string.select_documents_folder)
-                )
+                // Quick capture button
+                FloatingActionButton(
+                    onClick = onNavigateToCapture,
+                    containerColor = MaterialTheme.colorScheme.secondary
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "快速记录"
+                    )
+                }
+                
+                // Folder selector button
+                FloatingActionButton(
+                    onClick = {
+                        documentTreeLauncher.launch(null)
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Folder,
+                        contentDescription = stringResource(R.string.select_documents_folder)
+                    )
+                }
             }
         }
     ) { paddingValues ->

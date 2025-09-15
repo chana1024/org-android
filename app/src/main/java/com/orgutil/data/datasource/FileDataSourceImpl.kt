@@ -147,4 +147,41 @@ class FileDataSourceImpl @Inject constructor(
             null
         }
     }
+
+    override suspend fun appendToCaptureFile(content: String) = withContext(Dispatchers.IO) {
+        val treeUri = getStoredTreeUri() ?: throw IOException("No document tree access")
+        
+        try {
+            val documentFile = DocumentFile.fromTreeUri(context, treeUri)
+            if (documentFile?.exists() != true || !documentFile.isDirectory) {
+                throw IOException("Document directory not accessible")
+            }
+
+            // Find or create capture.org file
+            val captureFileName = "capture.org"
+            var captureFile = documentFile.listFiles().find { 
+                it.name == captureFileName && it.isFile 
+            }
+
+            if (captureFile == null) {
+                // Create capture.org file if it doesn't exist
+                captureFile = documentFile.createFile("text/org", captureFileName)
+                    ?: throw IOException("Could not create capture.org file")
+                
+                // Add initial content
+                val initialContent = "#+TITLE: Capture\n#+AUTHOR: OrgUtil\n#+DATE: ${java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())}\n\n"
+                writeFile(captureFile.uri, initialContent)
+            }
+
+            // Read existing content
+            val existingContent = readFile(captureFile.uri)
+            
+            // Append new content
+            val updatedContent = existingContent + content
+            writeFile(captureFile.uri, updatedContent)
+            
+        } catch (e: Exception) {
+            throw IOException("Failed to append to capture file: ${e.message}", e)
+        }
+    }
 }

@@ -54,4 +54,18 @@
     <color name="md_theme_dark_onSurface">#E6E1E5</color>
     <color name="md_theme_dark_surfaceVariant">#49454F</color>
     <color name="md_theme_dark_onSurfaceVariant">#CAC4D0</color>
+    
+    <!-- Widget Colors - Modern Dark Theme -->
+    <color name="widget_background">#FF2A2D30</color>
+    <color name="widget_background_light">#FF373B40</color>
+    <color name="widget_border">#FF404448</color>
+    <color name="widget_input_background">#FF323639</color>
+    <color name="widget_input_border">#FF484C52</color>
+    <color name="widget_text_primary">#FFFFFFFF</color>
+    <color name="widget_text_secondary">#FFBDC3C7</color>
+    <color name="widget_text_hint">#FF8B9297</color>
+    <color name="widget_button_normal">#FF4A90E2</color>
+    <color name="widget_button_pressed">#FF357ABD</color>
+    <color name="widget_button_success">#FF5CB85C</color>
+    <color name="widget_shadow">#80000000</color>
 </resources>

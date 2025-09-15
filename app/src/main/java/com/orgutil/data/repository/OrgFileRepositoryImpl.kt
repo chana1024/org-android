@@ -92,4 +92,13 @@ class OrgFileRepositoryImpl @Inject constructor(
     override suspend fun requestDocumentAccess(): Boolean {
         return fileDataSource.requestDocumentAccess()
     }
+
+    override suspend fun appendToCaptureFile(content: String): Result<Unit> {
+        return try {
+            fileDataSource.appendToCaptureFile(content)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

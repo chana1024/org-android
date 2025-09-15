@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <layer-list>
+            <!-- Pressed shadow -->
+            <item android:top="1dp" android:left="1dp" android:right="1dp" android:bottom="1dp">
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/widget_shadow" />
+                    <corners android:radius="13dp" />
+                </shape>
+            </item>
+            <!-- Pressed button -->
+            <item android:bottom="1dp" android:right="1dp">
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/widget_button_pressed" />
+                    <corners android:radius="12dp" />
+                    <stroke android:width="1dp" android:color="@color/widget_border" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+    <item>
+        <layer-list>
+            <!-- Normal shadow -->
+            <item android:top="2dp" android:left="2dp" android:right="2dp" android:bottom="2dp">
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/widget_shadow" />
+                    <corners android:radius="14dp" />
+                </shape>
+            </item>
+            <!-- Normal button -->
+            <item android:bottom="2dp" android:right="2dp">
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/widget_button_normal" />
+                    <corners android:radius="12dp" />
+                    <stroke android:width="1dp" android:color="@color/widget_border" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+</selector>

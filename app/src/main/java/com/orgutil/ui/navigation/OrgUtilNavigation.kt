@@ -9,6 +9,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.orgutil.ui.screens.CaptureScreen
 import com.orgutil.ui.screens.FileEditorScreen
 import com.orgutil.ui.screens.FileListScreen
 import java.net.URLDecoder
@@ -36,6 +37,9 @@ fun OrgUtilNavigation(
                     )
                     Log.d("OrgUtilNavigation", "Base64 Encoded URI: $encodedFileUri")
                     navController.navigate("file_editor/$encodedFileUri")
+                },
+                onNavigateToCapture = {
+                    navController.navigate("capture")
                 }
             )
         }
@@ -49,6 +53,14 @@ fun OrgUtilNavigation(
             Log.d("OrgUtilNavigation", "Base64 Decoded URI: $fileUriString")
             FileEditorScreen(
                 fileUriString = fileUriString,
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+        
+        composable("capture") {
+            CaptureScreen(
                 onNavigateBack = {
                     navController.popBackStack()
                 }
