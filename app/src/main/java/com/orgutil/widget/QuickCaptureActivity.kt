@@ -13,6 +13,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -21,6 +23,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.orgutil.ui.theme.OrgUtilTheme
 import com.orgutil.ui.viewmodel.CaptureViewModel
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
@@ -67,6 +70,12 @@ fun QuickCaptureDialog(
     var inputText by remember { mutableStateOf("") }
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        delay(100)
+        focusRequester.requestFocus()
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -81,7 +90,9 @@ fun QuickCaptureDialog(
                 OutlinedTextField(
                     value = inputText,
                     onValueChange = { inputText = it },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester),
                     placeholder = { 
                         Text("输入您的想法或待办事项...") 
                     },

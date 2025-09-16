@@ -1,18 +1,33 @@
 package com.orgutil.ui.components
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.orgutil.domain.model.OrgNode
@@ -22,44 +37,100 @@ fun OrgRenderer(
     nodes: List<OrgNode>,
     modifier: Modifier = Modifier
 ) {
+    val foldStates = remember {
+        val allIds = nodes.flatMap { getAllNodeIds(it) }
+        mutableStateOf(allIds.associateWith { true }.toMutableMap())
+    }
+
+    fun onToggleFold(node: OrgNode) {
+        val nodeId = "${node.level}-${node.title}"
+        val isFolded = foldStates.value[nodeId] ?: true
+        val newFoldStates = foldStates.value.toMutableMap()
+        newFoldStates[nodeId] = !isFolded
+
+        // If we are folding, fold all children recursively
+        if (!isFolded) { // Folding
+            val childIds = getAllChildIds(node)
+            childIds.forEach { childId ->
+                newFoldStates[childId] = true
+            }
+        }
+
+        foldStates.value = newFoldStates
+    }
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(nodes) { node ->
-            OrgNodeItem(node = node)
+            OrgNodeItem(
+                node = node,
+                foldStates = foldStates.value,
+                onToggleFold = ::onToggleFold
+            )
         }
     }
+}
+
+private fun getAllChildIds(node: OrgNode): List<String> {
+    return node.children.flatMap { child ->
+        val childId = "${child.level}-${child.title}"
+        listOf(childId) + getAllChildIds(child)
+    }
+}
+
+// Helper function to get all node IDs for fold state management
+private fun getAllNodeIds(node: OrgNode): List<String> {
+    val nodeId = "${node.level}-${node.title}"
+    return listOf(nodeId) + node.children.flatMap { getAllNodeIds(it) }
 }
 
 @Composable
 private fun OrgNodeItem(
     node: OrgNode,
+    foldStates: Map<String, Boolean>,
+    onToggleFold: (OrgNode) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val nodeId = "${node.level}-${node.title}"
+    val isFolded = foldStates[nodeId] ?: true
+
     Column(
         modifier = modifier.fillMaxWidth()
     ) {
         // Headline with level, todo, priority, title, and tags
-        OrgHeadline(node = node)
-        
-        // Content
-        if (node.content.isNotBlank()) {
-            OrgContent(
-                content = node.content,
-                level = node.level,
-                modifier = Modifier.padding(start = (node.level * 16).dp, top = 4.dp)
-            )
-        }
-        
-        // Children nodes (recursive)
-        if (node.children.isNotEmpty()) {
-            Column(
-                modifier = Modifier.padding(start = 16.dp, top = 8.dp)
-            ) {
-                node.children.forEach { child ->
-                    OrgNodeItem(node = child)
+        OrgHeadline(
+            node = node,
+            isFolded = isFolded,
+            hasChildren = node.children.isNotEmpty(),
+            onToggleFold = { onToggleFold(node) }
+        )
+
+        // Only show content and children if not folded
+        if (!isFolded) {
+            // Content
+            if (node.content.isNotBlank()) {
+                OrgContent(
+                    content = node.content,
+                    level = node.level,
+                    modifier = Modifier.padding(start = (node.level * 16).dp, top = 4.dp)
+                )
+            }
+
+            // Children nodes (recursive)
+            if (node.children.isNotEmpty()) {
+                Column(
+                    modifier = Modifier.padding(start = 16.dp, top = 8.dp)
+                ) {
+                    node.children.forEach { child ->
+                        OrgNodeItem(
+                            node = child,
+                            foldStates = foldStates,
+                            onToggleFold = onToggleFold
+                        )
+                    }
                 }
             }
         }
@@ -69,18 +140,39 @@ private fun OrgNodeItem(
 @Composable
 private fun OrgHeadline(
     node: OrgNode,
+    isFolded: Boolean,
+    hasChildren: Boolean,
+    onToggleFold: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(enabled = hasChildren) { onToggleFold() }
+            .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Left side: Level indicator, TODO state, priority, and title
+        // Left side: Fold indicator, Level indicator, TODO state, priority, and title
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.weight(1f)
         ) {
+            // Fold indicator (only show if has children)
+            if (hasChildren) {
+                Icon(
+                    imageVector = if (isFolded) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
+                    contentDescription = if (isFolded) "Expand" else "Collapse",
+                    modifier = Modifier
+                        .size(20.dp)
+                        .padding(end = 4.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                // Add spacing to align with nodes that have fold indicators
+                Spacer(modifier = Modifier.width(24.dp))
+            }
+            
             // Level indicator (stars)
             Text(
                 text = "★".repeat(node.level),
