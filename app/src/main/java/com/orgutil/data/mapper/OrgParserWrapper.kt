@@ -26,10 +26,8 @@ class OrgParserWrapper @Inject constructor() {
             val parser = builder.build()
             val parsedFile: OrgParsedFile = parser.parse()
             
-            // Convert OrgNodeInList to our domain model
-            parsedFile.headsInList.map { nodeInList ->
-                mapOrgNodeInListToOrgNode(nodeInList)
-            }
+            // Build hierarchical structure
+            buildHierarchicalStructure(parsedFile.headsInList)
         } catch (e: IOException) {
             // If parsing fails, return empty list
             emptyList()
@@ -54,6 +52,64 @@ class OrgParserWrapper @Inject constructor() {
         }
     }
 
+    private fun buildHierarchicalStructure(nodesList: List<OrgNodeInList>): List<OrgNode> {
+        if (nodesList.isEmpty()) return emptyList()
+        
+        val result = mutableListOf<OrgNode>()
+        val stack = mutableListOf<Pair<OrgNode, MutableList<OrgNode>>>()
+        
+        for (nodeInList in nodesList) {
+            val currentNode = mapOrgNodeInListToOrgNode(nodeInList)
+            val currentLevel = nodeInList.level
+            
+            // Pop nodes from stack that are not ancestors of current node
+            while (stack.isNotEmpty() && stack.last().first.level >= currentLevel) {
+                val (parentNode, children) = stack.removeAt(stack.size - 1)
+                val updatedParent = parentNode.copy(children = children.toList())
+                
+                if (stack.isNotEmpty()) {
+                    stack.last().second.add(updatedParent)
+                } else {
+                    result.add(updatedParent)
+                }
+            }
+            
+            // If stack is empty, this is a top-level node
+            if (stack.isEmpty()) {
+                if (nodesList.indexOf(nodeInList) == nodesList.size - 1) {
+                    // Last node, add directly
+                    result.add(currentNode)
+                } else {
+                    // Might have children, add to stack
+                    stack.add(currentNode to mutableListOf())
+                }
+            } else {
+                // This node is a child of the last node in stack
+                if (nodesList.indexOf(nodeInList) == nodesList.size - 1) {
+                    // Last node, add to parent's children
+                    stack.last().second.add(currentNode)
+                } else {
+                    // Might have children, add to stack
+                    stack.add(currentNode to mutableListOf())
+                }
+            }
+        }
+        
+        // Clean up remaining nodes in stack
+        while (stack.isNotEmpty()) {
+            val (parentNode, children) = stack.removeAt(stack.size - 1)
+            val updatedParent = parentNode.copy(children = children.toList())
+            
+            if (stack.isNotEmpty()) {
+                stack.last().second.add(updatedParent)
+            } else {
+                result.add(updatedParent)
+            }
+        }
+        
+        return result
+    }
+
     private fun mapOrgNodeInListToOrgNode(nodeInList: OrgNodeInList): OrgNode {
         val head = nodeInList.head
         return OrgNode(
@@ -63,7 +119,7 @@ class OrgParserWrapper @Inject constructor() {
             tags = head.tags?.toList() ?: emptyList(),
             todo = head.state,
             priority = head.priority,
-            children = emptyList() // Flatten structure for simplicity
+            children = emptyList() // Will be populated by buildHierarchicalStructure
         )
     }
 

@@ -39,12 +39,17 @@ fun OrgRenderer(
 ) {
     val foldStates = remember {
         val allIds = nodes.flatMap { getAllNodeIds(it) }
-        mutableStateOf(allIds.associateWith { true }.toMutableMap())
+        // Initialize with better default fold states
+        // Top-level nodes (level 1) start unfolded, others start folded
+        mutableStateOf(allIds.associateWith { nodeId ->
+            val level = nodeId.split("-").firstOrNull()?.toIntOrNull() ?: 1
+            level > 1 // Only fold sub-headers (level > 1) by default
+        }.toMutableMap())
     }
 
     fun onToggleFold(node: OrgNode) {
         val nodeId = "${node.level}-${node.title}"
-        val isFolded = foldStates.value[nodeId] ?: true
+        val isFolded = foldStates.value[nodeId] ?: (node.level > 1) // Default based on level
         val newFoldStates = foldStates.value.toMutableMap()
         newFoldStates[nodeId] = !isFolded
 
@@ -95,7 +100,7 @@ private fun OrgNodeItem(
     modifier: Modifier = Modifier
 ) {
     val nodeId = "${node.level}-${node.title}"
-    val isFolded = foldStates[nodeId] ?: true
+    val isFolded = foldStates[nodeId] ?: (node.level > 1) // Default based on level
 
     Column(
         modifier = modifier.fillMaxWidth()
@@ -110,19 +115,23 @@ private fun OrgNodeItem(
 
         // Only show content and children if not folded
         if (!isFolded) {
-            // Content
+            // Header content (appears directly under the headline)
             if (node.content.isNotBlank()) {
                 OrgContent(
                     content = node.content,
                     level = node.level,
-                    modifier = Modifier.padding(start = (node.level * 16).dp, top = 4.dp)
+                    modifier = Modifier.padding(
+                        start = ((node.level - 1) * 16 + 24).dp, // Align with headline text
+                        top = 4.dp,
+                        bottom = if (node.children.isNotEmpty()) 8.dp else 4.dp
+                    )
                 )
             }
 
             // Children nodes (recursive)
             if (node.children.isNotEmpty()) {
                 Column(
-                    modifier = Modifier.padding(start = 16.dp, top = 8.dp)
+                    modifier = Modifier.padding(start = 16.dp, top = if (node.content.isNotBlank()) 0.dp else 8.dp)
                 ) {
                     node.children.forEach { child ->
                         OrgNodeItem(
@@ -299,27 +308,45 @@ private fun OrgContent(
     level: Int,
     modifier: Modifier = Modifier
 ) {
-    // Simple content rendering - could be enhanced with markup parsing
+    // Enhanced content rendering - be more forgiving with whitespace
     val contentLines = content.split("\n")
+        .map { it.trim() } // Trim each line
+        .filter { it.isNotEmpty() } // Filter empty lines
     
-    Column(modifier = modifier) {
-        contentLines.forEach { line ->
-            when {
-                line.trimStart().startsWith("- ") || line.trimStart().startsWith("+ ") -> {
-                    // Bullet point
-                    BulletItem(text = line.trimStart().removePrefix("- ").removePrefix("+ "))
-                }
-                line.trimStart().matches(Regex("\\d+\\.\\s.*")) -> {
-                    // Numbered list
-                    NumberedItem(text = line.trimStart())
-                }
-                line.trim().startsWith("#+") -> {
-                    // Org directive (like #+TITLE:, #+AUTHOR:, etc.)
-                    OrgDirective(text = line.trim())
-                }
-                else -> {
-                    // Regular text
-                    if (line.trim().isNotEmpty()) {
+    if (contentLines.isEmpty() && content.isBlank()) return
+    
+    // If we have content but no visible lines, show raw content for debugging
+    val displayContent = if (contentLines.isNotEmpty()) {
+        contentLines
+    } else {
+        listOf("Debug: Raw content length ${content.length}")
+    }
+    
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(6.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            displayContent.forEach { line ->
+                when {
+                    line.startsWith("- ") || line.startsWith("+ ") -> {
+                        // Bullet point
+                        BulletItem(text = line.removePrefix("- ").removePrefix("+ "))
+                    }
+                    line.matches(Regex("\\d+\\.\\s.*")) -> {
+                        // Numbered list
+                        NumberedItem(text = line)
+                    }
+                    line.startsWith("#+") -> {
+                        // Org directive (like #+TITLE:, #+AUTHOR:, etc.)
+                        OrgDirective(text = line)
+                    }
+                    else -> {
+                        // Regular text
                         Text(
                             text = line,
                             modifier = Modifier.padding(vertical = 2.dp),
