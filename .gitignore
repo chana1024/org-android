@@ -31,9 +31,6 @@ captures/
 # Google Services
 google-services.json
 
-# Tool-specific
-.claude/
-.gemini/
 
 # OS files
 .DS_Store
