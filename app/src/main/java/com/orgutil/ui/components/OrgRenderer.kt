@@ -22,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -35,21 +36,30 @@ import com.orgutil.domain.model.OrgNode
 @Composable
 fun OrgRenderer(
     nodes: List<OrgNode>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    globalToggleState: Boolean? = null
 ) {
     val foldStates = remember {
         val allIds = nodes.flatMap { getAllNodeIds(it) }
-        // Initialize with better default fold states
-        // Top-level nodes (level 1) start unfolded, others start folded
+        // Initialize with all headers folded by default
+        // All nodes start folded (hidden) when first opening org file
         mutableStateOf(allIds.associateWith { nodeId ->
-            val level = nodeId.split("-").firstOrNull()?.toIntOrNull() ?: 1
-            level > 1 // Only fold sub-headers (level > 1) by default
+            true // All headers start folded by default
         }.toMutableMap())
+    }
+
+    // React to global toggle changes
+    LaunchedEffect(globalToggleState) {
+        globalToggleState?.let { shouldFold ->
+            val allIds = nodes.flatMap { getAllNodeIds(it) }
+            val newFoldStates = allIds.associateWith { shouldFold }.toMutableMap()
+            foldStates.value = newFoldStates
+        }
     }
 
     fun onToggleFold(node: OrgNode) {
         val nodeId = "${node.level}-${node.title}"
-        val isFolded = foldStates.value[nodeId] ?: (node.level > 1) // Default based on level
+        val isFolded = foldStates.value[nodeId] ?: true // Default: all headers start folded
         val newFoldStates = foldStates.value.toMutableMap()
         newFoldStates[nodeId] = !isFolded
 
@@ -100,7 +110,7 @@ private fun OrgNodeItem(
     modifier: Modifier = Modifier
 ) {
     val nodeId = "${node.level}-${node.title}"
-    val isFolded = foldStates[nodeId] ?: (node.level > 1) // Default based on level
+    val isFolded = foldStates[nodeId] ?: true // Default: all headers start folded
 
     Column(
         modifier = modifier.fillMaxWidth()

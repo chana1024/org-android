@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
@@ -28,6 +30,9 @@ fun FileEditorScreen(
     viewModel: FileEditorViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    
+    // State for global fold toggle
+    var globalFoldState by remember { mutableStateOf<Boolean?>(null) }
     
     LaunchedEffect(fileUriString) {
         fileUriString?.let { encodedUriString ->
@@ -64,6 +69,22 @@ fun FileEditorScreen(
                     }
                 },
                 actions = {
+                    // Global fold/unfold button (only show in view mode with content)
+                    if (uiState.document != null && !uiState.isLoading && uiState.isInViewMode) {
+                        IconButton(
+                            onClick = { 
+                                // Toggle between fold all and unfold all
+                                val currentlyFolded = globalFoldState != false
+                                globalFoldState = if (currentlyFolded) false else true
+                            }
+                        ) {
+                            Icon(
+                                imageVector = if (globalFoldState == false) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = if (globalFoldState == false) "Fold All" else "Expand All"
+                            )
+                        }
+                    }
+                    
                     // View mode toggle
                     if (uiState.document != null && !uiState.isLoading) {
                         IconButton(
@@ -157,7 +178,8 @@ fun FileEditorScreen(
                             if (currentDocument!=null) {
                                 OrgRenderer(
                                     nodes = currentDocument.nodes,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier.weight(1f),
+                                    globalToggleState = globalFoldState
                                 )
                             }
                         } else {
