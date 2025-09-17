@@ -33,7 +33,7 @@ class OrgFileRepositoryImpl @Inject constructor(
     override suspend fun readOrgFile(uri: Uri): Result<OrgDocument> {
         return try {
             val content = fileDataSource.readFile(uri)
-            val nodes = orgParserWrapper.parseContent(content)
+            val (preamble, nodes) = orgParserWrapper.parseContent(content)
             
             val fileName = DocumentFile.fromSingleUri(context, uri)?.name ?: "Unknown"
             val lastModified = DocumentFile.fromSingleUri(context, uri)?.lastModified() ?: 0L
@@ -43,7 +43,8 @@ class OrgFileRepositoryImpl @Inject constructor(
                 fileName = fileName,
                 content = content,
                 lastModified = lastModified,
-                nodes = nodes
+                nodes = nodes,
+                preamble = preamble
             )
             
             Result.success(document)
@@ -54,8 +55,10 @@ class OrgFileRepositoryImpl @Inject constructor(
 
     override suspend fun writeOrgFile(document: OrgDocument): Result<Unit> {
         return try {
-            val content = if (document.nodes.isNotEmpty()) {
-                orgParserWrapper.writeContent(document.nodes)
+            // Fix for Issue 2: Always use the document.content if it's been edited
+            // Only regenerate from nodes if document.content appears to be outdated
+            val content = if (document.nodes.isNotEmpty() && shouldRegenerateFromNodes(document)) {
+                orgParserWrapper.writeContent(document.preamble, document.nodes)
             } else {
                 document.content
             }
@@ -65,6 +68,13 @@ class OrgFileRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+    
+    private fun shouldRegenerateFromNodes(document: OrgDocument): Boolean {
+        // Only regenerate from nodes if the content appears to be the original parsed content
+        // and hasn't been manually edited. For now, we'll be conservative and prefer 
+        // document.content to preserve edits
+        return false
     }
 
     override suspend fun createOrgFile(name: String, content: String): Result<Uri> {

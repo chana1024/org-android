@@ -37,7 +37,8 @@ import com.orgutil.domain.model.OrgNode
 fun OrgRenderer(
     nodes: List<OrgNode>,
     modifier: Modifier = Modifier,
-    globalToggleState: Boolean? = null
+    globalToggleState: Boolean? = null,
+    preamble: String = ""
 ) {
     val foldStates = remember {
         val allIds = nodes.flatMap { getAllNodeIds(it) }
@@ -79,12 +80,107 @@ fun OrgRenderer(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        // Display preamble content first if it exists
+        if (preamble.isNotBlank()) {
+            item {
+                OrgPreamble(
+                    content = preamble,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+            }
+        }
+        
         items(nodes) { node ->
             OrgNodeItem(
                 node = node,
                 foldStates = foldStates.value,
                 onToggleFold = ::onToggleFold
             )
+        }
+    }
+}
+
+@Composable
+private fun OrgPreamble(
+    content: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f),
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = "Document Information",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            
+            val contentLines = content.split("\n")
+                .filter { it.isNotBlank() }
+            
+            contentLines.forEach { line ->
+                when {
+                    line.startsWith("#+TITLE:") -> {
+                        val title = line.removePrefix("#+TITLE:").trim()
+                        if (title.isNotBlank()) {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                        }
+                    }
+                    line.startsWith("#+AUTHOR:") -> {
+                        val author = line.removePrefix("#+AUTHOR:").trim()
+                        if (author.isNotBlank()) {
+                            Text(
+                                text = "Author: $author",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f),
+                                modifier = Modifier.padding(vertical = 2.dp)
+                            )
+                        }
+                    }
+                    line.startsWith("#+DATE:") -> {
+                        val date = line.removePrefix("#+DATE:").trim()
+                        if (date.isNotBlank()) {
+                            Text(
+                                text = "Date: $date",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f),
+                                modifier = Modifier.padding(vertical = 2.dp)
+                            )
+                        }
+                    }
+                    line.startsWith("#+") -> {
+                        // Other org directives
+                        Text(
+                            text = line,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f),
+                            modifier = Modifier.padding(vertical = 1.dp)
+                        )
+                    }
+                    else -> {
+                        // Regular preamble content
+                        Text(
+                            text = line,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(vertical = 2.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -120,6 +216,7 @@ private fun OrgNodeItem(
             node = node,
             isFolded = isFolded,
             hasChildren = node.children.isNotEmpty(),
+            hasContent = node.content.isNotBlank(),
             onToggleFold = { onToggleFold(node) }
         )
 
@@ -161,13 +258,14 @@ private fun OrgHeadline(
     node: OrgNode,
     isFolded: Boolean,
     hasChildren: Boolean,
+    hasContent: Boolean,
     onToggleFold: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(enabled = hasChildren) { onToggleFold() }
+            .clickable(enabled = hasChildren || hasContent) { onToggleFold() }
             .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -177,8 +275,8 @@ private fun OrgHeadline(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.weight(1f)
         ) {
-            // Fold indicator (only show if has children)
-            if (hasChildren) {
+            // Fold indicator (only show if has children or content)
+            if (hasChildren || hasContent) {
                 Icon(
                     imageVector = if (isFolded) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
                     contentDescription = if (isFolded) "Expand" else "Collapse",

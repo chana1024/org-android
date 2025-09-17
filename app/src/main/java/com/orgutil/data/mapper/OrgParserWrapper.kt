@@ -13,8 +13,11 @@ import javax.inject.Singleton
 @Singleton
 class OrgParserWrapper @Inject constructor() {
 
-    fun parseContent(content: String): List<OrgNode> {
+    fun parseContent(content: String): Pair<String, List<OrgNode>> {
         return try {
+            // Extract preamble (content before first header)
+            val preamble = extractPreamble(content)
+            
             // Create parser with input content
             val builder = OrgParser.Builder()
             builder.setInput(content)
@@ -27,13 +30,49 @@ class OrgParserWrapper @Inject constructor() {
             val parsedFile: OrgParsedFile = parser.parse()
             
             // Build hierarchical structure
-            buildHierarchicalStructure(parsedFile.headsInList)
+            val nodes = buildHierarchicalStructure(parsedFile.headsInList)
+            
+            Pair(preamble, nodes)
         } catch (e: IOException) {
-            // If parsing fails, return empty list
-            emptyList()
+            // If parsing fails, return empty list and raw content as preamble
+            Pair(content, emptyList())
         } catch (e: Exception) {
-            // If parsing fails, return empty list
-            emptyList()
+            // If parsing fails, return empty list and raw content as preamble  
+            Pair(content, emptyList())
+        }
+    }
+
+    fun writeContent(preamble: String, nodes: List<OrgNode>): String {
+        return try {
+            val parts = mutableListOf<String>()
+            
+            // Add preamble if it exists
+            if (preamble.isNotBlank()) {
+                parts.add(preamble.trim())
+            }
+            
+            // Add nodes content
+            if (nodes.isNotEmpty()) {
+                val nodesContent = nodes.joinToString("\n\n") { node ->
+                    buildNodeString(node)
+                }
+                parts.add(nodesContent)
+            }
+            
+            parts.joinToString("\n\n")
+        } catch (e: Exception) {
+            // If writing fails, return simple text representation
+            val parts = mutableListOf<String>()
+            if (preamble.isNotBlank()) {
+                parts.add(preamble.trim())
+            }
+            if (nodes.isNotEmpty()) {
+                val nodesContent = nodes.joinToString("\n\n") { node ->
+                    buildSimpleNodeString(node)
+                }
+                parts.add(nodesContent)
+            }
+            parts.joinToString("\n\n")
         }
     }
 
@@ -50,6 +89,21 @@ class OrgParserWrapper @Inject constructor() {
                 buildSimpleNodeString(node)
             }
         }
+    }
+
+    private fun extractPreamble(content: String): String {
+        val lines = content.split("\n")
+        val preambleLines = mutableListOf<String>()
+        
+        for (line in lines) {
+            // Stop when we find the first header (line starting with *)
+            if (line.trimStart().startsWith("*") && line.contains(" ")) {
+                break
+            }
+            preambleLines.add(line)
+        }
+        
+        return preambleLines.joinToString("\n").trim()
     }
 
     private fun buildHierarchicalStructure(nodesList: List<OrgNodeInList>): List<OrgNode> {

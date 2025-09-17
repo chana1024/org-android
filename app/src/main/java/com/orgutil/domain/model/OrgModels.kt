@@ -7,7 +7,8 @@ data class OrgDocument(
     val fileName: String,
     val content: String,
     val lastModified: Long,
-    val nodes: List<OrgNode>
+    val nodes: List<OrgNode>,
+    val preamble: String = ""
 )
 
 data class OrgNode(

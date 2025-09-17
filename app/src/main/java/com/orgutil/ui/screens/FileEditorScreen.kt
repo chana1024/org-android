@@ -179,7 +179,8 @@ fun FileEditorScreen(
                                 OrgRenderer(
                                     nodes = currentDocument.nodes,
                                     modifier = Modifier.weight(1f),
-                                    globalToggleState = globalFoldState
+                                    globalToggleState = globalFoldState,
+                                    preamble = currentDocument.preamble
                                 )
                             }
                         } else {
