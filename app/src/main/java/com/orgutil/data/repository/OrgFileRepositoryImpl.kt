@@ -7,6 +7,7 @@ import com.orgutil.data.datasource.FileDataSource
 import com.orgutil.data.mapper.OrgParserWrapper
 import com.orgutil.domain.model.OrgDocument
 import com.orgutil.domain.model.OrgFileInfo
+import com.orgutil.domain.repository.FavoriteRepository
 import com.orgutil.domain.repository.OrgFileRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -18,13 +19,18 @@ import javax.inject.Singleton
 class OrgFileRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val fileDataSource: FileDataSource,
-    private val orgParserWrapper: OrgParserWrapper
+    private val orgParserWrapper: OrgParserWrapper,
+    private val favoriteRepository: FavoriteRepository
 ) : OrgFileRepository {
 
     override suspend fun getOrgFiles(): Flow<List<OrgFileInfo>> = flow {
         try {
             val files = fileDataSource.getOrgFiles()
-            emit(files)
+            val favoriteUris = favoriteRepository.getFavoriteUris()
+            val filesWithFavoriteStatus = files.map { file ->
+                file.copy(isFavorite = favoriteUris.contains(file.uri.toString()))
+            }
+            emit(filesWithFavoriteStatus)
         } catch (e: Exception) {
             emit(emptyList())
         }

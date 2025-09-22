@@ -5,7 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.orgutil.data.datasource.FileDataSourceImpl
 import com.orgutil.domain.model.OrgFileInfo
+import com.orgutil.domain.usecase.AddToFavoritesUseCase
 import com.orgutil.domain.usecase.GetOrgFilesUseCase
+import com.orgutil.domain.usecase.RemoveFromFavoritesUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +19,8 @@ import javax.inject.Inject
 @HiltViewModel
 class FileListViewModel @Inject constructor(
     private val getOrgFilesUseCase: GetOrgFilesUseCase,
+    private val addToFavoritesUseCase: AddToFavoritesUseCase,
+    private val removeFromFavoritesUseCase: RemoveFromFavoritesUseCase,
     private val fileDataSource: FileDataSourceImpl
 ) : ViewModel() {
 
@@ -55,6 +59,24 @@ class FileListViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
+    }
+
+    fun toggleFavorite(file: OrgFileInfo) {
+        viewModelScope.launch {
+            try {
+                if (file.isFavorite) {
+                    removeFromFavoritesUseCase(file.uri)
+                } else {
+                    addToFavoritesUseCase(file.uri)
+                }
+                // Reload files to update the UI with new favorite status
+                loadFiles()
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    error = "Failed to toggle favorite: ${e.message}"
+                )
+            }
+        }
     }
 }
 
