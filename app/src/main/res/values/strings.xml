@@ -19,4 +19,9 @@
     <string name="grant_permission">Grant Permission</string>
     <string name="widget_description">Quick capture widget for adding notes to capture.org</string>
     <string name="widget_description_compact">Compact quick capture button</string>
+    <string name="favorites">Favorites</string>
+    <string name="add_to_favorites">Add to favorites</string>
+    <string name="remove_from_favorites">Remove from favorites</string>
+    <string name="no_favorite_files">No favorite files found</string>
+    <string name="favorite_files_description">Add files to favorites from the file list</string>
 </resources>

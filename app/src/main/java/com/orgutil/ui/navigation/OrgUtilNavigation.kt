@@ -10,6 +10,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.orgutil.ui.screens.CaptureScreen
+import com.orgutil.ui.screens.FavoritesScreen
 import com.orgutil.ui.screens.FileEditorScreen
 import com.orgutil.ui.screens.FileListScreen
 import java.net.URLDecoder
@@ -40,6 +41,9 @@ fun OrgUtilNavigation(
                 },
                 onNavigateToCapture = {
                     navController.navigate("capture")
+                },
+                onNavigateToFavorites = {
+                    navController.navigate("favorites")
                 }
             )
         }
@@ -53,6 +57,23 @@ fun OrgUtilNavigation(
             Log.d("OrgUtilNavigation", "Base64 Decoded URI: $fileUriString")
             FileEditorScreen(
                 fileUriString = fileUriString,
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+        
+        composable("favorites") {
+            FavoritesScreen(
+                onFileSelected = { fileUri ->
+                    Log.d("OrgUtilNavigation", "File URI: $fileUri")
+                    val encodedFileUri = Base64.encodeToString(
+                        fileUri.toString().toByteArray(StandardCharsets.UTF_8), 
+                        Base64.NO_WRAP
+                    )
+                    Log.d("OrgUtilNavigation", "Base64 Encoded URI: $encodedFileUri")
+                    navController.navigate("file_editor/$encodedFileUri")
+                },
                 onNavigateBack = {
                     navController.popBackStack()
                 }

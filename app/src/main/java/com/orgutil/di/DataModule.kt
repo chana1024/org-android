@@ -2,7 +2,9 @@ package com.orgutil.di
 
 import com.orgutil.data.datasource.FileDataSource
 import com.orgutil.data.datasource.FileDataSourceImpl
+import com.orgutil.data.repository.FavoriteRepositoryImpl
 import com.orgutil.data.repository.OrgFileRepositoryImpl
+import com.orgutil.domain.repository.FavoriteRepository
 import com.orgutil.domain.repository.OrgFileRepository
 import dagger.Binds
 import dagger.Module
@@ -25,4 +27,10 @@ abstract class DataModule {
     abstract fun bindFileDataSource(
         fileDataSourceImpl: FileDataSourceImpl
     ): FileDataSource
+
+    @Binds
+    @Singleton
+    abstract fun bindFavoriteRepository(
+        favoriteRepositoryImpl: FavoriteRepositoryImpl
+    ): FavoriteRepository
 }

@@ -9,8 +9,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,6 +34,7 @@ import java.util.*
 fun FileListScreen(
     onFileSelected: (Uri) -> Unit,
     onNavigateToCapture: () -> Unit,
+    onNavigateToFavorites: () -> Unit = {},
     viewModel: FileListViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -49,6 +53,12 @@ fun FileListScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.file_list_title)) },
                 actions = {
+                    IconButton(onClick = onNavigateToFavorites) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = stringResource(R.string.favorites)
+                        )
+                    }
                     IconButton(onClick = { viewModel.loadFiles() }) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
@@ -149,7 +159,8 @@ fun FileListScreen(
                         items(uiState.files) { file ->
                             FileItem(
                                 file = file,
-                                onClick = { onFileSelected(file.uri) }
+                                onClick = { onFileSelected(file.uri) },
+                                onFavoriteToggle = { viewModel.toggleFavorite(file) }
                             )
                         }
                     }
@@ -163,7 +174,8 @@ fun FileListScreen(
 @Composable
 fun FileItem(
     file: OrgFileInfo,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onFavoriteToggle: () -> Unit = {}
 ) {
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()) }
     
@@ -171,31 +183,44 @@ fun FileItem(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = file.name,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            
-            Spacer(modifier = Modifier.height(4.dp))
-            
-            Text(
-                text = dateFormat.format(Date(file.lastModified)),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            
-            if (file.size > 0) {
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
                 Text(
-                    text = "${file.size} bytes",
+                    text = file.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Text(
+                    text = dateFormat.format(Date(file.lastModified)),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                if (file.size > 0) {
+                    Text(
+                        text = "${file.size} bytes",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            
+            IconButton(onClick = onFavoriteToggle) {
+                Icon(
+                    imageVector = if (file.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = if (file.isFavorite) stringResource(R.string.remove_from_favorites) else stringResource(R.string.add_to_favorites),
+                    tint = if (file.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
