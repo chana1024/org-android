@@ -13,7 +13,24 @@ class AddToCaptureFileUseCase @Inject constructor(
     suspend operator fun invoke(content: String): Result<Unit> {
         return try {
             val formattedContent = formatAsOrgModeHeader(content)
+            
+            // 先记录当前文件大小（如果存在）
+            val originalSize = try {
+                repository.getCaptureFileSize()
+            } catch (e: Exception) {
+                0L
+            }
+            
+            // 执行追加操作
             repository.appendToCaptureFile(formattedContent)
+            
+            // 验证文件是否真的更新了
+            val newSize = repository.getCaptureFileSize()
+            if (newSize <= originalSize) {
+                throw Exception("文件可能未成功更新，请检查存储权限")
+            }
+            
+            Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }

@@ -14,4 +14,5 @@ interface OrgFileRepository {
     suspend fun hasDocumentAccess(): Boolean
     suspend fun requestDocumentAccess(): Boolean
     suspend fun appendToCaptureFile(content: String): Result<Unit>
+    suspend fun getCaptureFileSize(): Long
 }

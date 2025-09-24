@@ -101,12 +101,22 @@ fun QuickCaptureDialog(
                     shape = RoundedCornerShape(12.dp)
                 )
                 
-                uiState.error?.let { error->
+                uiState.error?.let { error ->
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = error,
                         color = MaterialTheme.colorScheme.error,
                         fontSize = 12.sp
+                    )
+                }
+                
+                uiState.successMessage?.let { message ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF2E7D32),
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }
@@ -117,8 +127,12 @@ fun QuickCaptureDialog(
                     if (inputText.isNotBlank()) {
                         scope.launch {
                             viewModel.addToCaptureFile(inputText.trim())
+                            // 等待操作完成后再关闭
+                            delay(1500) // 给用户看到成功消息的时间
+                            if (uiState.successMessage != null) {
+                                onCapture(inputText.trim())
+                            }
                         }
-                        onCapture(inputText.trim())
                     }
                 },
                 enabled = inputText.isNotBlank() && !uiState.isLoading

@@ -111,4 +111,12 @@ class OrgFileRepositoryImpl @Inject constructor(
             Result.failure(e)
         }
     }
+
+    override suspend fun getCaptureFileSize(): Long {
+        return try {
+            fileDataSource.getCaptureFileSize()
+        } catch (e: Exception) {
+            throw e
+        }
+    }
 }

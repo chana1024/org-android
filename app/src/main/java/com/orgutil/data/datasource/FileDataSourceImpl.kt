@@ -184,4 +184,25 @@ class FileDataSourceImpl @Inject constructor(
             throw IOException("Failed to append to capture file: ${e.message}", e)
         }
     }
+
+    override suspend fun getCaptureFileSize(): Long = withContext(Dispatchers.IO) {
+        val treeUri = getStoredTreeUri() ?: throw IOException("No document tree access")
+        
+        try {
+            val documentFile = DocumentFile.fromTreeUri(context, treeUri)
+            if (documentFile?.exists() != true || !documentFile.isDirectory) {
+                throw IOException("Document directory not accessible")
+            }
+
+            // Find capture.org file
+            val captureFileName = "capture.org"
+            val captureFile = documentFile.listFiles().find { 
+                it.name == captureFileName && it.isFile 
+            } ?: throw IOException("capture.org file not found")
+
+            captureFile.length()
+        } catch (e: Exception) {
+            throw IOException("Failed to get capture file size: ${e.message}", e)
+        }
+    }
 }
