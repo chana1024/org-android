@@ -1,5 +1,6 @@
 package com.orgutil.domain.usecase
 
+import android.net.Uri
 import com.orgutil.domain.model.OrgFileInfo
 import com.orgutil.domain.repository.OrgFileRepository
 import kotlinx.coroutines.flow.Flow

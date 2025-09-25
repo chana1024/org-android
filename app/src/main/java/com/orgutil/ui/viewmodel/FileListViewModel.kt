@@ -7,6 +7,7 @@ import com.orgutil.data.datasource.FileDataSourceImpl
 import com.orgutil.domain.model.OrgFileInfo
 import com.orgutil.domain.usecase.AddToFavoritesUseCase
 import com.orgutil.domain.usecase.GetOrgFilesUseCase
+import com.orgutil.domain.usecase.ReadOrgFileUseCase
 import com.orgutil.domain.usecase.RemoveFromFavoritesUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,14 +15,18 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
+
+// TODO: Refactor the search functionality to be more efficient and not use runBlocking.
 
 @HiltViewModel
 class FileListViewModel @Inject constructor(
     private val getOrgFilesUseCase: GetOrgFilesUseCase,
     private val addToFavoritesUseCase: AddToFavoritesUseCase,
     private val removeFromFavoritesUseCase: RemoveFromFavoritesUseCase,
-    private val fileDataSource: FileDataSourceImpl
+    private val fileDataSource: FileDataSourceImpl,
+    private val readOrgFileUseCase: ReadOrgFileUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(FileListUiState())
@@ -51,7 +56,7 @@ class FileListViewModel @Inject constructor(
                     }
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        files = filterFiles(files, _uiState.value.searchQuery),
+                        files = files,
                         error = null,
                         currentDirectory = currentDirectory
                     )
@@ -61,7 +66,11 @@ class FileListViewModel @Inject constructor(
 
     fun onDirectoryClicked(directory: OrgFileInfo) {
         if (directory.isDirectory) {
-            val newPathHistory = _uiState.value.pathHistory + (_uiState.value.currentDirectory?.uri)
+            val currentUri = _uiState.value.currentDirectory?.uri
+            val newPathHistory = _uiState.value.pathHistory.toMutableList()
+            if(currentUri != null) {
+                newPathHistory.add(currentUri)
+            }
             _uiState.value = _uiState.value.copy(pathHistory = newPathHistory, searchQuery = "")
             loadFiles(directory.uri)
         }
@@ -86,17 +95,25 @@ class FileListViewModel @Inject constructor(
     }
 
     fun onSearchQueryChanged(query: String) {
-        _uiState.value = _uiState.value.copy(
-            searchQuery = query,
-            files = filterFiles(allFiles, query)
-        )
+        _uiState.value = _uiState.value.copy(searchQuery = query)
+        viewModelScope.launch {
+            val filteredFiles = filterFiles(allFiles, query)
+            _uiState.value = _uiState.value.copy(files = filteredFiles)
+        }
     }
 
-    private fun filterFiles(files: List<OrgFileInfo>, query: String): List<OrgFileInfo> {
+    private suspend fun filterFiles(files: List<OrgFileInfo>, query: String): List<OrgFileInfo> {
         if (query.isBlank()) {
             return files
         }
-        return files.filter { it.name.contains(query, ignoreCase = true) }
+        return files.filter { file ->
+            if (file.isDirectory) {
+                file.name.contains(query, ignoreCase = true)
+            } else {
+                val content by lazy { runBlocking { readOrgFileUseCase(file.uri) } }
+                file.name.contains(query, ignoreCase = true) || content.getOrNull()?.content?.contains(query, ignoreCase = true) == true
+            }
+        }
     }
 
     fun clearError() {
