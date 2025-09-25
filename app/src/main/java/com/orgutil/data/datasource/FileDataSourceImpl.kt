@@ -25,30 +25,42 @@ class FileDataSourceImpl @Inject constructor(
     private val prefs: SharedPreferences = context.getSharedPreferences("org_util_prefs", Context.MODE_PRIVATE)
     private val DOCUMENT_TREE_URI_KEY = "document_tree_uri"
 
-    override suspend fun getOrgFiles(): List<OrgFileInfo> = withContext(Dispatchers.IO) {
-        val treeUri = getStoredTreeUri() ?: return@withContext emptyList()
-        
+    override suspend fun getOrgFiles(uri: Uri?): List<OrgFileInfo> = withContext(Dispatchers.IO) {
+        val treeUri = uri ?: getStoredTreeUri() ?: return@withContext emptyList()
+
         try {
             val documentFile = DocumentFile.fromTreeUri(context, treeUri)
             if (documentFile?.exists() != true || !documentFile.isDirectory) {
                 return@withContext emptyList()
             }
 
-            val orgFiles = mutableListOf<OrgFileInfo>()
+            val entries = mutableListOf<OrgFileInfo>()
             documentFile.listFiles().forEach { file ->
-                if (file.isFile && file.name?.endsWith(".org") == true) {
-                    orgFiles.add(
+                if (file.isDirectory) {
+                    entries.add(
                         OrgFileInfo(
                             uri = file.uri,
                             name = file.name ?: "Unknown",
                             lastModified = file.lastModified(),
-                            size = file.length()
+                            size = 0,
+                            isDirectory = true
+                        )
+                    )
+                } else if (file.isFile && file.name?.endsWith(".org") == true) {
+                    entries.add(
+                        OrgFileInfo(
+                            uri = file.uri,
+                            name = file.name ?: "Unknown",
+                            lastModified = file.lastModified(),
+                            size = file.length(),
+                            isDirectory = false
                         )
                     )
                 }
             }
-            orgFiles.sortedByDescending { it.lastModified }
+            entries.sortedWith(compareByDescending<OrgFileInfo> { it.isDirectory }.thenBy { it.name })
         } catch (e: Exception) {
+            Log.e("FileDataSourceImpl", "Error getting org files", e)
             emptyList()
         }
     }

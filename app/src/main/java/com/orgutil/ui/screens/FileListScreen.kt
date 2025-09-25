@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.activity.compose.BackHandler
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -39,7 +41,7 @@ fun FileListScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
-    
+
     val documentTreeLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
@@ -48,25 +50,52 @@ fun FileListScreen(
         }
     }
 
+    BackHandler(enabled = uiState.pathHistory.isNotEmpty()) {
+        viewModel.onBackButtonPressed()
+    }
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.file_list_title)) },
-                actions = {
-                    IconButton(onClick = onNavigateToFavorites) {
-                        Icon(
-                            imageVector = Icons.Default.Star,
-                            contentDescription = stringResource(R.string.favorites)
-                        )
+            Column {
+                TopAppBar(
+                    title = { 
+                        val title = uiState.currentDirectory?.name ?: stringResource(R.string.file_list_title)
+                        Text(text = title)
+                    },
+                    navigationIcon = {
+                        if (uiState.pathHistory.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.onBackButtonPressed() }) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowBack,
+                                    contentDescription = "Back"
+                                )
+                            }
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = onNavigateToFavorites) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = stringResource(R.string.favorites)
+                            )
+                        }
+                        IconButton(onClick = { viewModel.loadFiles(uiState.currentDirectory?.uri) }) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Refresh"
+                            )
+                        }
                     }
-                    IconButton(onClick = { viewModel.loadFiles() }) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Refresh"
-                        )
-                    }
-                }
-            )
+                )
+                OutlinedTextField(
+                    value = uiState.searchQuery,
+                    onValueChange = { viewModel.onSearchQueryChanged(it) },
+                    label = { Text("Search") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
         },
         floatingActionButton = {
             Column(
@@ -132,20 +161,22 @@ fun FileListScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = stringResource(R.string.no_files_found),
+                            text = if (uiState.searchQuery.isNotEmpty()) "No files found for '${uiState.searchQuery}'" else stringResource(R.string.no_files_found),
                             style = MaterialTheme.typography.bodyLarge
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(
-                            onClick = { documentTreeLauncher.launch(null) }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Folder,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(stringResource(R.string.select_documents_folder))
+                        if (uiState.searchQuery.isEmpty()) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(
+                                onClick = { documentTreeLauncher.launch(null) }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Folder,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(stringResource(R.string.select_documents_folder))
+                            }
                         }
                     }
                 }
@@ -159,7 +190,13 @@ fun FileListScreen(
                         items(uiState.files) { file ->
                             FileItem(
                                 file = file,
-                                onClick = { onFileSelected(file.uri) },
+                                onClick = { 
+                                    if (file.isDirectory) {
+                                        viewModel.onDirectoryClicked(file)
+                                    } else {
+                                        onFileSelected(file.uri)
+                                    }
+                                },
                                 onFavoriteToggle = { viewModel.toggleFavorite(file) }
                             )
                         }
@@ -189,6 +226,19 @@ fun FileItem(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (file.isDirectory) {
+                Icon(
+                    imageVector = Icons.Default.Folder,
+                    contentDescription = "Directory",
+                    modifier = Modifier.size(40.dp).padding(end = 16.dp)
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Description, // Or some other file icon
+                    contentDescription = "File",
+                    modifier = Modifier.size(40.dp).padding(end = 16.dp)
+                )
+            }
             Column(
                 modifier = Modifier.weight(1f)
             ) {
@@ -201,27 +251,31 @@ fun FileItem(
                 
                 Spacer(modifier = Modifier.height(4.dp))
                 
-                Text(
-                    text = dateFormat.format(Date(file.lastModified)),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                
-                if (file.size > 0) {
+                if (!file.isDirectory) {
                     Text(
-                        text = "${file.size} bytes",
+                        text = dateFormat.format(Date(file.lastModified)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    
+                    if (file.size > 0) {
+                        Text(
+                            text = "${file.size} bytes",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
             
-            IconButton(onClick = onFavoriteToggle) {
-                Icon(
-                    imageVector = if (file.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = if (file.isFavorite) stringResource(R.string.remove_from_favorites) else stringResource(R.string.add_to_favorites),
-                    tint = if (file.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            if (!file.isDirectory) {
+                IconButton(onClick = onFavoriteToggle) {
+                    Icon(
+                        imageVector = if (file.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = if (file.isFavorite) stringResource(R.string.remove_from_favorites) else stringResource(R.string.add_to_favorites),
+                        tint = if (file.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

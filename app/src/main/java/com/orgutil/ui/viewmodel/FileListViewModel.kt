@@ -27,15 +27,17 @@ class FileListViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(FileListUiState())
     val uiState: StateFlow<FileListUiState> = _uiState.asStateFlow()
 
+    private var allFiles: List<OrgFileInfo> = emptyList()
+
     init {
         loadFiles()
     }
 
-    fun loadFiles() {
+    fun loadFiles(uri: Uri? = null) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             
-            getOrgFilesUseCase()
+            getOrgFilesUseCase(uri)
                 .catch { error ->
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
@@ -43,18 +45,58 @@ class FileListViewModel @Inject constructor(
                     )
                 }
                 .collect { files ->
+                    allFiles = files
+                    val currentDirectory = uri?.let {
+                        OrgFileInfo(it, it.pathSegments.lastOrNull() ?: "", 0, 0, isDirectory = true)
+                    }
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        files = files,
-                        error = null
+                        files = filterFiles(files, _uiState.value.searchQuery),
+                        error = null,
+                        currentDirectory = currentDirectory
                     )
                 }
         }
     }
 
+    fun onDirectoryClicked(directory: OrgFileInfo) {
+        if (directory.isDirectory) {
+            val newPathHistory = _uiState.value.pathHistory + (_uiState.value.currentDirectory?.uri)
+            _uiState.value = _uiState.value.copy(pathHistory = newPathHistory, searchQuery = "")
+            loadFiles(directory.uri)
+        }
+    }
+
+    fun onBackButtonPressed(): Boolean {
+        return if (_uiState.value.pathHistory.isNotEmpty()) {
+            val newPathHistory = _uiState.value.pathHistory.toMutableList()
+            val parentUri = newPathHistory.removeLast()
+            _uiState.value = _uiState.value.copy(pathHistory = newPathHistory, searchQuery = "")
+            loadFiles(parentUri)
+            true
+        } else {
+            false
+        }
+    }
+
     fun onDocumentTreeSelected(uri: Uri) {
         fileDataSource.storeTreeUri(uri)
-        loadFiles()
+        _uiState.value = _uiState.value.copy(pathHistory = emptyList(), searchQuery = "")
+        loadFiles(uri)
+    }
+
+    fun onSearchQueryChanged(query: String) {
+        _uiState.value = _uiState.value.copy(
+            searchQuery = query,
+            files = filterFiles(allFiles, query)
+        )
+    }
+
+    private fun filterFiles(files: List<OrgFileInfo>, query: String): List<OrgFileInfo> {
+        if (query.isBlank()) {
+            return files
+        }
+        return files.filter { it.name.contains(query, ignoreCase = true) }
     }
 
     fun clearError() {
@@ -69,8 +111,7 @@ class FileListViewModel @Inject constructor(
                 } else {
                     addToFavoritesUseCase(file.uri)
                 }
-                // Reload files to update the UI with new favorite status
-                loadFiles()
+                loadFiles(_uiState.value.currentDirectory?.uri)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     error = "Failed to toggle favorite: ${e.message}"
@@ -83,5 +124,8 @@ class FileListViewModel @Inject constructor(
 data class FileListUiState(
     val isLoading: Boolean = false,
     val files: List<OrgFileInfo> = emptyList(),
-    val error: String? = null
+    val error: String? = null,
+    val currentDirectory: OrgFileInfo? = null,
+    val pathHistory: List<Uri> = emptyList(),
+    val searchQuery: String = ""
 )

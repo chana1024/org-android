@@ -26,5 +26,6 @@ data class OrgFileInfo(
     val name: String,
     val lastModified: Long,
     val size: Long,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val isDirectory: Boolean = false
 )
