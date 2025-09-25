@@ -25,7 +25,7 @@ class FileDataSourceImpl @Inject constructor(
     private val prefs: SharedPreferences = context.getSharedPreferences("org_util_prefs", Context.MODE_PRIVATE)
     private val DOCUMENT_TREE_URI_KEY = "document_tree_uri"
 
-    override suspend fun getOrgFiles(uri: Uri?): List<OrgFileInfo> = withContext(Dispatchers.IO) {
+    override suspend fun getOrgFiles(uri: Uri?, query: String?): List<OrgFileInfo> = withContext(Dispatchers.IO) {
         val treeUri = uri ?: getStoredTreeUri() ?: return@withContext emptyList()
 
         try {
@@ -34,31 +34,82 @@ class FileDataSourceImpl @Inject constructor(
                 return@withContext emptyList()
             }
 
-            val entries = mutableListOf<OrgFileInfo>()
-            documentFile.listFiles().forEach { file ->
-                if (file.isDirectory) {
-                    entries.add(
-                        OrgFileInfo(
-                            uri = file.uri,
-                            name = file.name ?: "Unknown",
-                            lastModified = file.lastModified(),
-                            size = 0,
-                            isDirectory = true
+            if (query.isNullOrBlank()) {
+                val entries = mutableListOf<OrgFileInfo>()
+                documentFile.listFiles().forEach { file ->
+                    if (file.isDirectory) {
+                        entries.add(
+                            OrgFileInfo(
+                                uri = file.uri,
+                                name = file.name ?: "Unknown",
+                                lastModified = file.lastModified(),
+                                size = 0,
+                                isDirectory = true
+                            )
                         )
-                    )
-                } else if (file.isFile && file.name?.endsWith(".org") == true) {
-                    entries.add(
-                        OrgFileInfo(
-                            uri = file.uri,
-                            name = file.name ?: "Unknown",
-                            lastModified = file.lastModified(),
-                            size = file.length(),
-                            isDirectory = false
+                    } else if (file.isFile && file.name?.endsWith(".org") == true) {
+                        entries.add(
+                            OrgFileInfo(
+                                uri = file.uri,
+                                name = file.name ?: "Unknown",
+                                lastModified = file.lastModified(),
+                                size = file.length(),
+                                isDirectory = false
+                            )
                         )
-                    )
+                    }
                 }
+                entries.sortedWith(compareByDescending<OrgFileInfo> { it.isDirectory }.thenBy { it.name })
+            } else {
+                val results = mutableListOf<OrgFileInfo>()
+                
+                suspend fun search(file: DocumentFile, path: String) {
+                    if (file.isDirectory) {
+                        for (child in file.listFiles()) {
+                            if (child.name != null) {
+                                search(child, if (path.isEmpty()) child.name!! else "$path/${child.name}")
+                            }
+                        }
+                    } else if (file.isFile && file.name?.endsWith(".org") == true) {
+                        val fileNameMatch = file.name?.contains(query, ignoreCase = true) == true
+                        if (fileNameMatch) {
+                            results.add(
+                                OrgFileInfo(
+                                    uri = file.uri,
+                                    name = path,
+                                    lastModified = file.lastModified(),
+                                    size = file.length(),
+                                    isDirectory = false
+                                )
+                            )
+                        } else {
+                            try {
+                                val content = readFile(file.uri)
+                                if (content.contains(query, ignoreCase = true)) {
+                                    results.add(
+                                        OrgFileInfo(
+                                            uri = file.uri,
+                                            name = path,
+                                            lastModified = file.lastModified(),
+                                            size = file.length(),
+                                            isDirectory = false
+                                        )
+                                    )
+                                }
+                            } catch (e: IOException) {
+                                Log.e("FileDataSourceImpl", "Failed to read file for search: ${file.uri}", e)
+                            }
+                        }
+                    }
+                }
+
+                for (file in documentFile.listFiles()) {
+                    if (file.name != null) {
+                        search(file, file.name!!)
+                    }
+                }
+                results
             }
-            entries.sortedWith(compareByDescending<OrgFileInfo> { it.isDirectory }.thenBy { it.name })
         } catch (e: Exception) {
             Log.e("FileDataSourceImpl", "Error getting org files", e)
             emptyList()

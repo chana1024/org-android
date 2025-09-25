@@ -11,7 +11,7 @@ import javax.inject.Singleton
 class GetOrgFilesUseCase @Inject constructor(
     private val repository: OrgFileRepository
 ) {
-    suspend operator fun invoke(uri: Uri? = null): Flow<List<OrgFileInfo>> {
-        return repository.getOrgFiles(uri)
+    suspend operator fun invoke(uri: Uri? = null, query: String? = null): Flow<List<OrgFileInfo>> {
+        return repository.getOrgFiles(uri, query)
     }
 }

@@ -23,9 +23,9 @@ class OrgFileRepositoryImpl @Inject constructor(
     private val favoriteRepository: FavoriteRepository
 ) : OrgFileRepository {
 
-    override suspend fun getOrgFiles(uri: Uri?): Flow<List<OrgFileInfo>> = flow {
+    override suspend fun getOrgFiles(uri: Uri?, query: String?): Flow<List<OrgFileInfo>> = flow {
         try {
-            val files = fileDataSource.getOrgFiles(uri)
+            val files = fileDataSource.getOrgFiles(uri, query)
             val favoriteUris = favoriteRepository.getFavoriteUris()
             val filesWithFavoriteStatus = files.map { file ->
                 file.copy(isFavorite = favoriteUris.contains(file.uri.toString()))

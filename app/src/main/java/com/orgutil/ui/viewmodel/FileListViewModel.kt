@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
 
-// TODO: Refactor the search functionality to be more efficient and not use runBlocking.
+
 
 @HiltViewModel
 class FileListViewModel @Inject constructor(
@@ -32,8 +32,6 @@ class FileListViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(FileListUiState())
     val uiState: StateFlow<FileListUiState> = _uiState.asStateFlow()
 
-    private var allFiles: List<OrgFileInfo> = emptyList()
-
     init {
         loadFiles()
     }
@@ -41,8 +39,9 @@ class FileListViewModel @Inject constructor(
     fun loadFiles(uri: Uri? = null) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            val query = _uiState.value.searchQuery
             
-            getOrgFilesUseCase(uri)
+            getOrgFilesUseCase(uri, query)
                 .catch { error ->
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
@@ -50,7 +49,6 @@ class FileListViewModel @Inject constructor(
                     )
                 }
                 .collect { files ->
-                    allFiles = files
                     val currentDirectory = uri?.let {
                         OrgFileInfo(it, it.pathSegments.lastOrNull() ?: "", 0, 0, isDirectory = true)
                     }
@@ -96,24 +94,7 @@ class FileListViewModel @Inject constructor(
 
     fun onSearchQueryChanged(query: String) {
         _uiState.value = _uiState.value.copy(searchQuery = query)
-        viewModelScope.launch {
-            val filteredFiles = filterFiles(allFiles, query)
-            _uiState.value = _uiState.value.copy(files = filteredFiles)
-        }
-    }
-
-    private suspend fun filterFiles(files: List<OrgFileInfo>, query: String): List<OrgFileInfo> {
-        if (query.isBlank()) {
-            return files
-        }
-        return files.filter { file ->
-            if (file.isDirectory) {
-                file.name.contains(query, ignoreCase = true)
-            } else {
-                val content by lazy { runBlocking { readOrgFileUseCase(file.uri) } }
-                file.name.contains(query, ignoreCase = true) || content.getOrNull()?.content?.contains(query, ignoreCase = true) == true
-            }
-        }
+        loadFiles(_uiState.value.currentDirectory?.uri)
     }
 
     fun clearError() {
