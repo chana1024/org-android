@@ -1,0 +1,4 @@
+instructions:
+- name: execute-task
+  description: Parse and implement features/tasks described in markdown task files
+  content_file: execute-task.md

@@ -7,6 +7,10 @@ import androidx.documentfile.provider.DocumentFile
 import com.orgutil.domain.repository.FavoriteRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -38,6 +42,18 @@ class FavoriteRepositoryImpl @Inject constructor(
 
     override suspend fun isFavorite(fileUri: Uri): Boolean = withContext(Dispatchers.IO) {
         getFavoriteUris().contains(fileUri.toString())
+    }
+
+    override fun getFavoriteUrisFlow(): Flow<Set<String>> = callbackFlow {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener {
+            _, key ->
+            if (key == FAVORITES_FILE_URI_KEY) {
+                trySend(runBlocking { getFavoriteUris() })
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        trySend(runBlocking { getFavoriteUris() })
+        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
 
     override suspend fun getFavoriteUris(): Set<String> = withContext(Dispatchers.IO) {
