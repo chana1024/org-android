@@ -83,12 +83,6 @@ fun FileListScreen(
                                 tint = if (uiState.isSearchEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        IconButton(onClick = onNavigateToFavorites) {
-                            Icon(
-                                imageVector = Icons.Default.Star,
-                                contentDescription = stringResource(R.string.favorites)
-                            )
-                        }
                         IconButton(onClick = { viewModel.loadFiles(uiState.currentDirectory?.uri) }) {
                             Icon(
                                 imageVector = Icons.Default.Refresh,

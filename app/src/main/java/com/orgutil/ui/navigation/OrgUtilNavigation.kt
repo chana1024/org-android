@@ -13,6 +13,7 @@ import com.orgutil.ui.screens.CaptureScreen
 import com.orgutil.ui.screens.FavoritesScreen
 import com.orgutil.ui.screens.FileEditorScreen
 import com.orgutil.ui.screens.FileListScreen
+import com.orgutil.ui.screens.MainScreen
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -24,16 +25,16 @@ fun OrgUtilNavigation(
 ) {
     NavHost(
         navController = navController,
-        startDestination = "file_list",
+        startDestination = "main",
         modifier = modifier
     ) {
-        composable("file_list") {
-            FileListScreen(
+        composable("main") {
+            MainScreen(
                 onFileSelected = { fileUri ->
                     Log.d("OrgUtilNavigation", "File URI: $fileUri")
                     // 使用Base64编码，避免URL编码问题
                     val encodedFileUri = Base64.encodeToString(
-                        fileUri.toString().toByteArray(StandardCharsets.UTF_8), 
+                        fileUri.toString().toByteArray(StandardCharsets.UTF_8),
                         Base64.NO_WRAP
                     )
                     Log.d("OrgUtilNavigation", "Base64 Encoded URI: $encodedFileUri")
@@ -41,9 +42,6 @@ fun OrgUtilNavigation(
                 },
                 onNavigateToCapture = {
                     navController.navigate("capture")
-                },
-                onNavigateToFavorites = {
-                    navController.navigate("favorites")
                 }
             )
         }
@@ -62,24 +60,7 @@ fun OrgUtilNavigation(
                 }
             )
         }
-        
-        composable("favorites") {
-            FavoritesScreen(
-                onFileSelected = { fileUri ->
-                    Log.d("OrgUtilNavigation", "File URI: $fileUri")
-                    val encodedFileUri = Base64.encodeToString(
-                        fileUri.toString().toByteArray(StandardCharsets.UTF_8), 
-                        Base64.NO_WRAP
-                    )
-                    Log.d("OrgUtilNavigation", "Base64 Encoded URI: $encodedFileUri")
-                    navController.navigate("file_editor/$encodedFileUri")
-                },
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
-            )
-        }
-        
+
         composable("capture") {
             CaptureScreen(
                 onNavigateBack = {
