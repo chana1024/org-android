@@ -6,7 +6,7 @@ import com.orgutil.data.database.dao.FileDao
 import com.orgutil.data.database.entity.FileContentFtsEntity
 import com.orgutil.data.database.entity.FileMetadataEntity
 
-@Database(entities = [FileMetadataEntity::class, FileContentFtsEntity::class], version = 2, exportSchema = false)
+@Database(entities = [FileMetadataEntity::class, FileContentFtsEntity::class], version = 3, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun fileDao(): FileDao
 }

@@ -1,6 +1,7 @@
 package com.orgutil.ui.viewmodel
 
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.orgutil.domain.model.OrgDocument
@@ -58,14 +59,27 @@ class FileEditorViewModel @Inject constructor(
     fun saveFile() {
         val currentState = _uiState.value
         val document = currentState.document ?: return
-        
+
+        Log.d("FileEditorViewModel", "=== SAVE FILE OPERATION START ===")
+        Log.d("FileEditorViewModel", "Document URI: ${document.uri}")
+        Log.d("FileEditorViewModel", "Document fileName: ${document.fileName}")
+        Log.d("FileEditorViewModel", "Original content length: ${document.content.length}")
+        Log.d("FileEditorViewModel", "Edited content length: ${currentState.editedContent.length}")
+        Log.d("FileEditorViewModel", "Has unsaved changes: ${currentState.hasUnsavedChanges}")
+        Log.d("FileEditorViewModel", "Original content preview (first 200): ${document.content.take(200)}")
+        Log.d("FileEditorViewModel", "Edited content preview (first 200): ${currentState.editedContent.take(200)}")
+
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true, error = null)
-            
+            Log.d("FileEditorViewModel", "Starting save operation in coroutine")
+
             val updatedDocument = document.copy(content = currentState.editedContent)
-            
+            Log.d("FileEditorViewModel", "Created updated document with edited content (${updatedDocument.content.length} chars)")
+
             saveOrgFileUseCase(updatedDocument)
                 .onSuccess {
+                    Log.d("FileEditorViewModel", "Save SUCCESS - updating UI state")
+                    Log.d("FileEditorViewModel", "Setting hasUnsavedChanges=false, saveSuccess=true")
                     _uiState.value = _uiState.value.copy(
                         isSaving = false,
                         document = updatedDocument,
@@ -73,8 +87,12 @@ class FileEditorViewModel @Inject constructor(
                         saveSuccess = true,
                         error = null
                     )
+                    Log.d("FileEditorViewModel", "=== SAVE FILE OPERATION COMPLETED SUCCESSFULLY ===")
                 }
                 .onFailure { error ->
+                    Log.e("FileEditorViewModel", "=== SAVE FILE OPERATION FAILED ===", error)
+                    Log.e("FileEditorViewModel", "Error message: ${error.message}")
+                    Log.e("FileEditorViewModel", "Error type: ${error.javaClass.simpleName}")
                     _uiState.value = _uiState.value.copy(
                         isSaving = false,
                         error = error.message ?: "Failed to save file"

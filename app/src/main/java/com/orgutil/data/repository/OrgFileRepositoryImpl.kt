@@ -18,6 +18,7 @@ import javax.inject.Singleton
 import com.orgutil.data.datasource.FileDataSource
 import android.util.Log
 import java.io.File
+import java.io.IOException
 
 @Singleton
 class OrgFileRepositoryImpl @Inject constructor(
@@ -138,14 +139,38 @@ class OrgFileRepositoryImpl @Inject constructor(
     }
 
     override suspend fun writeOrgFile(document: OrgDocument): Result<Unit> {
+        Log.d("OrgFileRepositoryImpl", "writeOrgFile called - URI: ${document.uri}, fileName: ${document.fileName}")
         return try {
-            val content = if (document.nodes.isNotEmpty()) {
-                orgParserWrapper.writeContent(document.preamble, document.nodes)
-            } else {
-                document.content
-            }
-            
+            // IMPORTANT: Always use document.content directly, not regenerated from nodes
+            // The document.content field contains the edited content from the editor
+            // The nodes field contains the parsed structure from when the file was loaded
+            // If we regenerate from nodes, we lose any edits made in the editor!
+            val content = document.content
+
+            Log.d("OrgFileRepositoryImpl", "Using document.content directly (${content.length} chars)")
+            Log.d("OrgFileRepositoryImpl", "Content preview: ${content.take(100)}")
+
+            // Write the file
             fileDataSource.writeFile(document.uri, content)
+            Log.d("OrgFileRepositoryImpl", "fileDataSource.writeFile completed")
+
+            // VERIFICATION: Read back the content to verify it was actually written
+            try {
+                val readBackContent = fileDataSource.readFile(document.uri)
+                Log.d("OrgFileRepositoryImpl", "Read-back verification - Original: ${content.length} chars, Read-back: ${readBackContent.length} chars")
+
+                if (readBackContent != content) {
+                    Log.e("OrgFileRepositoryImpl", "VERIFICATION FAILED! Content mismatch after write")
+                    Log.e("OrgFileRepositoryImpl", "Expected content (first 200): ${content.take(200)}")
+                    Log.e("OrgFileRepositoryImpl", "Actual content (first 200): ${readBackContent.take(200)}")
+                    return Result.failure(IOException("File verification failed: content mismatch after write"))
+                }
+                Log.d("OrgFileRepositoryImpl", "Read-back verification PASSED - content matches!")
+            } catch (e: Exception) {
+                Log.e("OrgFileRepositoryImpl", "Read-back verification failed with exception", e)
+                return Result.failure(IOException("File verification failed: ${e.message}", e))
+            }
+
             // After writing, we should update the index
             val fileInfo = OrgFileInfo(
                 uri = document.uri,
@@ -155,10 +180,15 @@ class OrgFileRepositoryImpl @Inject constructor(
                 isDirectory = false
             )
             fileDao.insertFileMetadata(fileInfo.toFileMetadataEntity())
-            fileDao.insertFileContent(fileInfo.toFileContentFtsEntity(content))
+            Log.d("OrgFileRepositoryImpl", "File metadata inserted")
 
+            fileDao.insertFileContent(fileInfo.toFileContentFtsEntity(content))
+            Log.d("OrgFileRepositoryImpl", "File content inserted to FTS")
+
+            Log.d("OrgFileRepositoryImpl", "writeOrgFile completed successfully")
             Result.success(Unit)
         } catch (e: Exception) {
+            Log.e("OrgFileRepositoryImpl", "writeOrgFile failed", e)
             Result.failure(e)
         }
     }

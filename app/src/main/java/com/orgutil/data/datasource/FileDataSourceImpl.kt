@@ -141,14 +141,49 @@ class FileDataSourceImpl @Inject constructor(
         }
     }
 
-    override suspend fun writeFile(uri: Uri, content: String) = withContext(Dispatchers.IO) {
+    override suspend fun writeFile(uri: Uri, content: String): Unit = withContext(Dispatchers.IO) {
+        Log.d("FileDataSourceImpl", "writeFile called - URI: $uri, content length: ${content.length}")
+        Log.d("FileDataSourceImpl", "Content preview (first 200 chars): ${content.take(200)}")
+
         try {
-            context.contentResolver.openOutputStream(uri, "wt")?.use { outputStream ->
-                OutputStreamWriter(outputStream).use { writer ->
+            // Use "wt" mode to truncate the file before writing (replace existing content)
+            // "w" alone is not a valid mode and may cause unpredictable behavior
+            val outputStream = context.contentResolver.openOutputStream(uri, "wt")
+            Log.d("FileDataSourceImpl", "openOutputStream(mode='wt') returned: ${outputStream != null}")
+
+            if (outputStream == null) {
+                Log.e("FileDataSourceImpl", "openOutputStream returned null - no write permission or invalid URI")
+                throw IOException("Could not open file for writing - no permission or invalid URI")
+            }
+
+            outputStream.use { os ->
+                Log.d("FileDataSourceImpl", "Creating OutputStreamWriter with UTF-8 encoding")
+                OutputStreamWriter(os, Charsets.UTF_8).use { writer ->
+                    Log.d("FileDataSourceImpl", "Writing ${content.length} characters to file...")
                     writer.write(content)
+                    writer.flush()
+                    Log.d("FileDataSourceImpl", "Content written and flushed to writer successfully")
                 }
-            } ?: throw IOException("Could not open file for writing")
+                os.flush()
+                Log.d("FileDataSourceImpl", "Output stream flushed successfully")
+            }
+
+            // Verify the write by reading back the file size
+            try {
+                val documentFile = DocumentFile.fromSingleUri(context, uri)
+                val actualSize = documentFile?.length() ?: -1L
+                Log.d("FileDataSourceImpl", "Write verification - Expected size: ${content.length}, Actual size: $actualSize")
+
+                if (actualSize != content.length.toLong()) {
+                    Log.w("FileDataSourceImpl", "Size mismatch! Expected ${content.length} bytes, but file has $actualSize bytes")
+                }
+            } catch (e: Exception) {
+                Log.w("FileDataSourceImpl", "Could not verify file size after write: ${e.message}")
+            }
+
+            Log.d("FileDataSourceImpl", "writeFile completed successfully")
         } catch (e: Exception) {
+            Log.e("FileDataSourceImpl", "Failed to write file: ${e.message}", e)
             throw IOException("Failed to write file: ${e.message}", e)
         }
     }
@@ -271,7 +306,8 @@ class FileDataSourceImpl @Inject constructor(
         } catch (e: Exception) {
             Log.e("FileDataSourceImpl", "Failed to append to capture file: ${e.message}", e)
             throw IOException("Failed to append to capture file: ${e.message}", e)
-        }    }
+        }
+    }
 
     override suspend fun getCaptureFileSize(): Long = withContext(Dispatchers.IO) {
         val treeUri = getStoredTreeUri() ?: throw IOException("No document tree access")
