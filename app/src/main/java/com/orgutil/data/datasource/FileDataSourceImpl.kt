@@ -354,6 +354,35 @@ class FileDataSourceImpl @Inject constructor(
         }
     }
 
+    override suspend fun getFileInfo(uri: Uri): OrgFileInfo? = withContext(Dispatchers.IO) {
+        try {
+            val documentFile = DocumentFile.fromSingleUri(context, uri)
+            if (documentFile?.exists() != true || !documentFile.isFile) {
+                return@withContext null
+            }
+
+            // Get the relative path from tree URI
+            val treeUri = getStoredTreeUri()
+            val path = if (treeUri != null) {
+                // Try to get relative path by comparing tree structure
+                documentFile.name ?: uri.lastPathSegment ?: "unknown"
+            } else {
+                documentFile.name ?: uri.lastPathSegment ?: "unknown"
+            }
+
+            OrgFileInfo(
+                uri = uri,
+                name = path,
+                lastModified = documentFile.lastModified(),
+                size = documentFile.length(),
+                isDirectory = false
+            )
+        } catch (e: Exception) {
+            Log.e("FileDataSourceImpl", "Error getting file info for URI: $uri", e)
+            null
+        }
+    }
+
     /**
      * Checks if the text matches the query using fuzzy matching.
      * Supports partial matching and Chinese characters.

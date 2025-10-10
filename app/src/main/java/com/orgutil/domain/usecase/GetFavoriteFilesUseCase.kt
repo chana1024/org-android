@@ -15,12 +15,15 @@ class GetFavoriteFilesUseCase @Inject constructor(
 ) {
     suspend operator fun invoke(): Flow<List<OrgFileInfo>> {
         return favoriteRepository.getFavoriteUrisFlow().map { favoriteUris ->
-            // Get all org files recursively from all subdirectories
-            val allFiles = orgFileRepository.getAllOrgFiles()
-            allFiles.filter { file ->
-                favoriteUris.contains(file.uri.toString())
-            }.map { file ->
-                file.copy(isFavorite = true)
+            // Directly get file info for each favorite URI instead of scanning entire directory
+            favoriteUris.mapNotNull { uriString ->
+                try {
+                    val uri = android.net.Uri.parse(uriString)
+                    orgFileRepository.getFileInfo(uri)?.copy(isFavorite = true)
+                } catch (e: Exception) {
+                    // Skip invalid URIs
+                    null
+                }
             }
         }
     }

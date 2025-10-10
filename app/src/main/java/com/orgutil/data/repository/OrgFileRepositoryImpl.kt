@@ -111,6 +111,10 @@ class OrgFileRepositoryImpl @Inject constructor(
         return fileDataSource.getAllOrgFiles()
     }
 
+    override suspend fun getFileInfo(uri: Uri): OrgFileInfo? {
+        return fileDataSource.getFileInfo(uri)
+    }
+
     override suspend fun readOrgFile(uri: Uri): Result<OrgDocument> {
         return try {
             val path = uri.path ?: return Result.failure(IllegalArgumentException("Invalid URI path"))
