@@ -28,58 +28,74 @@ class OrgFileRepositoryImpl @Inject constructor(
     private val fileDataSource: FileDataSource // Keep for file operations
 ) : OrgFileRepository {
 
-    override suspend fun getOrgFiles(uri: Uri?, query: String?): Flow<List<OrgFileInfo>> {
-        Log.d("OrgFileRepositoryImpl", "getOrgFiles called with uri: $uri, query: '$query'")
+    override suspend fun getOrgFiles(uri: Uri?, query: String?, useDatabase: Boolean): Flow<List<OrgFileInfo>> {
+        Log.d("OrgFileRepositoryImpl", "getOrgFiles called with uri: $uri, query: '$query', useDatabase: $useDatabase")
 
         // If a specific URI is provided, use FileDataSource directly for directory browsing
         if (uri != null) {
             Log.d("OrgFileRepositoryImpl", "Using FileDataSource for specific URI")
-            val files = fileDataSource.getOrgFiles(uri, query)
-            return flowOf(files)
-        }
-
-        // For search queries, prefer database search when available, but also include directories from FileDataSource
-        if (!query.isNullOrBlank()) {
-            Log.d("OrgFileRepositoryImpl", "Using database search for query: '$query'")
-            // For FTS queries, we need to handle Chinese characters properly
-            val ftsQuery = prepareFtsQuery(query)
-            val filesFlow = fileDao.searchFilesByNameAndContent(query, ftsQuery)
-            return filesFlow.combine(favoriteRepository.getFavoriteUrisFlow()) { files, favoriteUris ->
-                val searchResults = files.map { metadata ->
-                    val uri = try {
-                        Uri.parse(metadata.path)
-                    } catch (e: Exception) {
-                        Log.e("OrgFileRepositoryImpl", "Failed to parse URI: ${metadata.path}", e)
-                        Uri.fromFile(java.io.File(metadata.path))
-                    }
-                    OrgFileInfo(
-                        uri = uri,
-                        name = metadata.fileName,
-                        lastModified = metadata.lastModified,
-                        isFavorite = favoriteUris.contains(metadata.path),
-                        size = metadata.size,
-                        isDirectory = false
-                    )
-                }
-
-                // When searching, also include matching directories from FileDataSource
+            return favoriteRepository.getFavoriteUrisFlow().combine(flowOf(Unit)) { favoriteUris, _ ->
                 try {
-                    val fileSourceResults = fileDataSource.getOrgFiles(null, query)
-                    val directories = fileSourceResults.filter { it.isDirectory }
-                    val allResults = directories + searchResults
-                    allResults.sortedWith(compareByDescending<OrgFileInfo> { it.isDirectory }.thenBy { it.name })
+                    val files = fileDataSource.getOrgFiles(uri, query)
+                    Log.d("OrgFileRepositoryImpl", "FileDataSource returned ${files.size} files for URI")
+                    files.map { file ->
+                        file.copy(isFavorite = favoriteUris.contains(file.uri.toString()))
+                    }
                 } catch (e: Exception) {
-                    Log.e("OrgFileRepositoryImpl", "Error getting directories for search", e)
-                    searchResults
+                    Log.e("OrgFileRepositoryImpl", "Error getting files from FileDataSource for URI", e)
+                    emptyList()
                 }
             }
         }
 
-        // For listing all files (no search query), always use FileDataSource
-        Log.d("OrgFileRepositoryImpl", "Getting all files - using FileDataSource for file listing")
+        // For search queries, only use database if useDatabase flag is true
+        if (!query.isNullOrBlank() && useDatabase) {
+            Log.d("OrgFileRepositoryImpl", "Using database search for query: '$query'")
+            // For FTS queries, we need to handle Chinese characters properly
+            val ftsQuery = prepareFtsQuery(query)
+
+            // Execute both queries in parallel and merge results
+            return favoriteRepository.getFavoriteUrisFlow().combine(flowOf(Unit)) { favoriteUris, _ ->
+                try {
+                    // Search by filename and content separately for better performance
+                    val fileNameResults = fileDao.searchFilesByName(query)
+                    val contentResults = fileDao.searchFilesByContent(ftsQuery)
+
+                    // Merge and deduplicate results
+                    val allResults = (fileNameResults + contentResults)
+                        .distinctBy { it.path }
+                        .sortedBy { it.fileName }
+
+                    Log.d("OrgFileRepositoryImpl", "Found ${fileNameResults.size} by name, ${contentResults.size} by content, ${allResults.size} total")
+
+                    allResults.map { metadata ->
+                        val uri = try {
+                            Uri.parse(metadata.path)
+                        } catch (e: Exception) {
+                            Log.e("OrgFileRepositoryImpl", "Failed to parse URI: ${metadata.path}", e)
+                            Uri.fromFile(java.io.File(metadata.path))
+                        }
+                        OrgFileInfo(
+                            uri = uri,
+                            name = metadata.fileName,
+                            lastModified = metadata.lastModified,
+                            isFavorite = favoriteUris.contains(metadata.path),
+                            size = metadata.size,
+                            isDirectory = false
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.e("OrgFileRepositoryImpl", "Error searching files", e)
+                    emptyList()
+                }
+            }
+        }
+
+        // For all other cases (no search query, or search disabled), use FileDataSource
+        Log.d("OrgFileRepositoryImpl", "Getting files - using FileDataSource for file listing")
         return favoriteRepository.getFavoriteUrisFlow().combine(flowOf(Unit)) { favoriteUris, _ ->
             try {
-                val fileSourceFiles = fileDataSource.getOrgFiles(null, null)
+                val fileSourceFiles = fileDataSource.getOrgFiles(null, query)
                 Log.d("OrgFileRepositoryImpl", "FileDataSource returned ${fileSourceFiles.size} files")
                 fileSourceFiles.map { file ->
                     file.copy(isFavorite = favoriteUris.contains(file.uri.toString()))
@@ -89,6 +105,10 @@ class OrgFileRepositoryImpl @Inject constructor(
                 emptyList()
             }
         }
+    }
+
+    override suspend fun getAllOrgFiles(): List<OrgFileInfo> {
+        return fileDataSource.getAllOrgFiles()
     }
 
     override suspend fun readOrgFile(uri: Uri): Result<OrgDocument> {

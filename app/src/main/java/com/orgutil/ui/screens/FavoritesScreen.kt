@@ -97,7 +97,8 @@ fun FavoritesScreen(
                         items(uiState.favoriteFiles) { file ->
                             FileItem(
                                 file = file,
-                                onClick = { onFileSelected(file.uri) }
+                                onClick = { onFileSelected(file.uri) },
+                                onFavoriteToggle = { viewModel.removeFavorite(file) }
                             )
                         }
                     }

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.orgutil.domain.model.OrgFileInfo
 import com.orgutil.domain.usecase.GetFavoriteFilesUseCase
+import com.orgutil.domain.usecase.RemoveFromFavoritesUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,7 +15,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class FavoritesViewModel @Inject constructor(
-    private val getFavoriteFilesUseCase: GetFavoriteFilesUseCase
+    private val getFavoriteFilesUseCase: GetFavoriteFilesUseCase,
+    private val removeFromFavoritesUseCase: RemoveFromFavoritesUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(FavoritesUiState())
@@ -27,7 +29,7 @@ class FavoritesViewModel @Inject constructor(
     fun loadFavoriteFiles() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            
+
             getFavoriteFilesUseCase()
                 .catch { error ->
                     _uiState.value = _uiState.value.copy(
@@ -42,6 +44,19 @@ class FavoritesViewModel @Inject constructor(
                         error = null
                     )
                 }
+        }
+    }
+
+    fun removeFavorite(file: OrgFileInfo) {
+        viewModelScope.launch {
+            try {
+                removeFromFavoritesUseCase(file.uri)
+                // The list will be updated automatically by the flow in GetFavoriteFilesUseCase
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    error = "Failed to remove favorite: ${e.message}"
+                )
+            }
         }
     }
 

@@ -26,6 +26,7 @@ class FavoriteRepositoryImpl @Inject constructor(
     private val prefs: SharedPreferences = context.getSharedPreferences("org_util_prefs", Context.MODE_PRIVATE)
     private val DOCUMENT_TREE_URI_KEY = "document_tree_uri"
     private val FAVORITES_FILE_URI_KEY = "favorites_file_uri"
+    private val FAVORITES_VERSION_KEY = "favorites_version"  // Used to trigger flow updates
     private val FAVORITES_FILE_NAME = ".orgutil_favorites"
 
     override suspend fun addToFavorites(fileUri: Uri) :Unit= withContext(Dispatchers.IO) {
@@ -45,9 +46,8 @@ class FavoriteRepositoryImpl @Inject constructor(
     }
 
     override fun getFavoriteUrisFlow(): Flow<Set<String>> = callbackFlow {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener {
-            _, key ->
-            if (key == FAVORITES_FILE_URI_KEY) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == FAVORITES_FILE_URI_KEY || key == FAVORITES_VERSION_KEY) {
                 trySend(runBlocking { getFavoriteUris() })
             }
         }
@@ -158,7 +158,8 @@ class FavoriteRepositoryImpl @Inject constructor(
         try {
             val favoritesFile = getFavoritesFile()
             if (favoritesFile != null) {
-                context.contentResolver.openOutputStream(favoritesFile.uri)?.use { outputStream ->
+                // Use "wt" mode to truncate the file before writing (important for removals)
+                context.contentResolver.openOutputStream(favoritesFile.uri, "wt")?.use { outputStream ->
                     OutputStreamWriter(outputStream).use { writer ->
                         favorites.forEach { favorite ->
                             writer.write("$favorite\n")
@@ -166,6 +167,9 @@ class FavoriteRepositoryImpl @Inject constructor(
                         writer.flush() // Ensure content is written
                     }
                 }
+                // Increment version to trigger flow updates
+                val currentVersion = prefs.getLong(FAVORITES_VERSION_KEY, 0)
+                prefs.edit().putLong(FAVORITES_VERSION_KEY, currentVersion + 1).apply()
             }else{
                android.util.Log.e("FavoriteRepository", "Failed to get favorites file")
             }

@@ -15,6 +15,8 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -73,6 +75,14 @@ fun FileListScreen(
                         }
                     },
                     actions = {
+                        // Search mode toggle button
+                        IconButton(onClick = { viewModel.toggleSearchMode() }) {
+                            Icon(
+                                imageVector = if (uiState.isSearchEnabled) Icons.Default.Search else Icons.Default.SearchOff,
+                                contentDescription = if (uiState.isSearchEnabled) "Database Search Enabled" else "Database Search Disabled",
+                                tint = if (uiState.isSearchEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         IconButton(onClick = onNavigateToFavorites) {
                             Icon(
                                 imageVector = Icons.Default.Star,

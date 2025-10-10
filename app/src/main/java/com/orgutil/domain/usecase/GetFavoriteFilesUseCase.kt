@@ -14,9 +14,10 @@ class GetFavoriteFilesUseCase @Inject constructor(
     private val favoriteRepository: FavoriteRepository
 ) {
     suspend operator fun invoke(): Flow<List<OrgFileInfo>> {
-        return orgFileRepository.getOrgFiles().map { files ->
-            val favoriteUris = favoriteRepository.getFavoriteUris()
-            files.filter { file ->
+        return favoriteRepository.getFavoriteUrisFlow().map { favoriteUris ->
+            // Get all org files recursively from all subdirectories
+            val allFiles = orgFileRepository.getAllOrgFiles()
+            allFiles.filter { file ->
                 favoriteUris.contains(file.uri.toString())
             }.map { file ->
                 file.copy(isFavorite = true)

@@ -36,27 +36,17 @@ interface FileDao {
     @Query("DELETE FROM file_content_fts WHERE path IN (:paths)")
     suspend fun deleteFileContentByPaths(paths: List<String>)
 
-    @Transaction
     @Query("SELECT * FROM file_metadata WHERE fileName LIKE '%' || :query || '%'")
-    fun searchFilesByName(query: String): Flow<List<FileMetadataEntity>>
+    suspend fun searchFilesByName(query: String): List<FileMetadataEntity>
 
-    @Transaction
     @Query(
         """
-        SELECT * FROM file_metadata
-        WHERE path IN (SELECT path FROM file_content_fts WHERE content MATCH :query)
+        SELECT m.* FROM file_metadata m
+        INNER JOIN file_content_fts f ON m.path = f.path
+        WHERE f.content MATCH :ftsQuery
         """
     )
-    fun searchFilesByContent(query: String): Flow<List<FileMetadataEntity>>
-
-    @Transaction
-    @Query(
-        """
-        SELECT * FROM file_metadata
-        WHERE fileName LIKE '%' || :query || '%' OR path IN (SELECT path FROM file_content_fts WHERE content MATCH :ftsQuery)
-        """
-    )
-    fun searchFilesByNameAndContent(query: String, ftsQuery: String): Flow<List<FileMetadataEntity>>
+    suspend fun searchFilesByContent(ftsQuery: String): List<FileMetadataEntity>
 
     @Query("SELECT path FROM file_metadata")
     suspend fun getAllFilePaths(): List<String>

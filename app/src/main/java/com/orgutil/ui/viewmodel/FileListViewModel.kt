@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import javax.inject.Inject
 import android.util.Log
 
@@ -35,6 +36,9 @@ class FileListViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(FileListUiState())
     val uiState: StateFlow<FileListUiState> = _uiState.asStateFlow()
 
+    // Track the current file loading job to cancel previous collectors
+    private var loadFilesJob: Job? = null
+
     init {
         // Load files with stored tree URI if available
         val storedUri = fileDataSource.getStoredTreeUri()
@@ -45,13 +49,18 @@ class FileListViewModel @Inject constructor(
 
     fun loadFiles(uri: Uri? = null) {
         Log.d("FileListViewModel", "loadFiles called with uri: $uri")
-        viewModelScope.launch {
+
+        // Cancel previous file loading job to prevent race conditions
+        loadFilesJob?.cancel()
+
+        loadFilesJob = viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             val query = _uiState.value.searchQuery
+            val isSearchEnabled = _uiState.value.isSearchEnabled
 
-            Log.d("FileListViewModel", "Starting getOrgFilesUseCase with query: '$query'")
+            Log.d("FileListViewModel", "Starting getOrgFilesUseCase with query: '$query', searchEnabled: $isSearchEnabled")
 
-            getOrgFilesUseCase(uri, query)
+            getOrgFilesUseCase(uri, query, isSearchEnabled)
                 .catch { error ->
                     Log.e("FileListViewModel", "Error in getOrgFilesUseCase", error)
                     _uiState.value = _uiState.value.copy(
@@ -119,6 +128,14 @@ class FileListViewModel @Inject constructor(
         loadFiles(_uiState.value.currentDirectory?.uri)
     }
 
+    fun toggleSearchMode() {
+        _uiState.value = _uiState.value.copy(isSearchEnabled = !_uiState.value.isSearchEnabled)
+        // Reload files with new search mode
+        if (_uiState.value.searchQuery.isNotEmpty()) {
+            loadFiles(_uiState.value.currentDirectory?.uri)
+        }
+    }
+
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
     }
@@ -131,7 +148,7 @@ class FileListViewModel @Inject constructor(
                 } else {
                     addToFavoritesUseCase(file.uri)
                 }
-                // The list will be updated automatically by the flow
+                // The list will be updated automatically by the flow when favorites change
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     error = "Failed to toggle favorite: ${e.message}"
@@ -171,5 +188,6 @@ data class FileListUiState(
     val error: String? = null,
     val currentDirectory: OrgFileInfo? = null,
     val pathHistory: List<Uri> = emptyList(),
-    val searchQuery: String = ""
+    val searchQuery: String = "",
+    val isSearchEnabled: Boolean = false
 )
