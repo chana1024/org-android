@@ -1,139 +1,94 @@
 package com.orgutil.ui.viewmodel
 
-import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
+import com.orgutil.domain.indexing.FileIndexRequestResult
+import com.orgutil.domain.indexing.FileIndexScheduler
 import com.orgutil.domain.model.OrgFileInfo
 import com.orgutil.domain.usecase.AddToFavoritesUseCase
 import com.orgutil.domain.usecase.GetOrgFilesUseCase
+import com.orgutil.domain.usecase.GetStoredDocumentTreeUseCase
 import com.orgutil.domain.usecase.RemoveFromFavoritesUseCase
 import com.orgutil.domain.usecase.StoreDocumentTreeUseCase
-import com.orgutil.worker.FileIndexerWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Job
 import javax.inject.Inject
-import android.util.Log
 
 @HiltViewModel
 class FileListViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
     private val getOrgFilesUseCase: GetOrgFilesUseCase,
     private val addToFavoritesUseCase: AddToFavoritesUseCase,
     private val removeFromFavoritesUseCase: RemoveFromFavoritesUseCase,
     private val storeDocumentTreeUseCase: StoreDocumentTreeUseCase,
-    private val fileDataSource: com.orgutil.data.datasource.FileDataSource
+    private val getStoredDocumentTreeUseCase: GetStoredDocumentTreeUseCase,
+    private val fileIndexScheduler: FileIndexScheduler
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(FileListUiState())
     val uiState: StateFlow<FileListUiState> = _uiState.asStateFlow()
 
-    // Track the current file loading job to cancel previous collectors
     private var loadFilesJob: Job? = null
+    private var searchDebounceJob: Job? = null
 
     init {
-        // Load files with stored tree URI if available
-        val storedUri = fileDataSource.getStoredTreeUri()
-        loadFiles(storedUri)
-        // Trigger initial indexing when the app starts
-        triggerIndexing()
+        bootstrap()
     }
 
-    fun loadFiles(uri: Uri? = null) {
-        Log.d("FileListViewModel", "loadFiles called with uri: $uri")
+    fun refreshCurrentLocation() {
+        searchDebounceJob?.cancel()
+        loadFiles(_uiState.value.currentDirectoryUri)
+    }
 
-        // Cancel previous file loading job to prevent race conditions
-        loadFilesJob?.cancel()
+    /** 切换搜索模式：所有文件 ↔ 全文搜索 */
+    fun setSearchMode(queryMode: FileListQueryMode) {
+        val state = _uiState.value
+        if (state.queryMode == queryMode) return
 
-        loadFilesJob = viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            val query = _uiState.value.searchQuery
-            val isSearchEnabled = _uiState.value.isSearchEnabled
-
-            Log.d("FileListViewModel", "Starting getOrgFilesUseCase with query: '$query', searchEnabled: $isSearchEnabled")
-
-            getOrgFilesUseCase(uri, query, isSearchEnabled)
-                .catch { error ->
-                    Log.e("FileListViewModel", "Error in getOrgFilesUseCase", error)
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        error = error.message ?: "Unknown error occurred"
-                    )
-                }
-                .collect { files ->
-                    Log.d("FileListViewModel", "Received ${files.size} files from use case")
-                    val currentDirectory = uri?.let {
-                        OrgFileInfo(
-                            it, it.pathSegments.lastOrNull() ?: "", 0, isDirectory = true,
-                            size = 0,
-                            isFavorite = false
-                        )
-                    }
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        files = files,
-                        error = null,
-                        currentDirectory = currentDirectory
-                    )
-                    Log.d("FileListViewModel", "Updated UI state with ${files.size} files")
-                }
-        }
+        _uiState.value = state.withSearchMode(queryMode)
+        refreshCurrentLocation()
     }
 
     fun onDirectoryClicked(directory: OrgFileInfo) {
-        if (directory.isDirectory) {
-            val currentUri = _uiState.value.currentDirectory?.uri
-            val newPathHistory = _uiState.value.pathHistory.toMutableList()
-            // Add current directory to history before navigating
-            // This ensures we can navigate back even from the first subdirectory
-            if(currentUri != null) {
-                newPathHistory.add(currentUri)
+        if (!directory.isDirectory) return
+
+        val currentUri = _uiState.value.currentDirectoryUri
+        val newPathHistory = buildList {
+            addAll(_uiState.value.pathHistory)
+            if (currentUri != null) {
+                add(currentUri)
             }
-            _uiState.value = _uiState.value.copy(pathHistory = newPathHistory, searchQuery = "")
-            // Clear search query when navigating to ensure FileDataSource is used for directory browsing
-            loadFiles(directory.uri)
         }
+        navigateTo(directory.uri, newPathHistory)
     }
 
     fun onBackButtonPressed(): Boolean {
-        return if (_uiState.value.pathHistory.isNotEmpty()) {
-            val newPathHistory = _uiState.value.pathHistory.toMutableList()
-            val parentUri = newPathHistory.removeLast()
-            _uiState.value = _uiState.value.copy(pathHistory = newPathHistory, searchQuery = "")
-            // Clear search query when navigating back to ensure FileDataSource is used for directory browsing
-            loadFiles(parentUri)
-            true
-        } else {
-            false
+        if (_uiState.value.pathHistory.isEmpty()) {
+            return false
         }
+
+        val newPathHistory = _uiState.value.pathHistory.toMutableList()
+        val parentUri = newPathHistory.removeAt(newPathHistory.lastIndex)
+        navigateTo(parentUri, newPathHistory)
+        return true
     }
 
     fun onDocumentTreeSelected(uri: Uri) {
-        Log.d("FileListViewModel", "Document tree selected: $uri")
+        safeLogD("FileListViewModel", "Document tree selected: $uri")
         storeDocumentTreeUseCase(uri)
-        _uiState.value = _uiState.value.copy(pathHistory = emptyList(), searchQuery = "")
-        loadFiles(uri)
+        navigateTo(uri, emptyList())
     }
 
     fun onSearchQueryChanged(query: String) {
-        _uiState.value = _uiState.value.copy(searchQuery = query)
-        loadFiles(_uiState.value.currentDirectory?.uri)
-    }
-
-    fun toggleSearchMode() {
-        _uiState.value = _uiState.value.copy(isSearchEnabled = !_uiState.value.isSearchEnabled)
-        // Reload files with new search mode
-        if (_uiState.value.searchQuery.isNotEmpty()) {
-            loadFiles(_uiState.value.currentDirectory?.uri)
-        }
+        _uiState.value = _uiState.value.globalQueryChanged(query)
+        scheduleSearchRefresh()
     }
 
     fun clearError() {
@@ -148,7 +103,6 @@ class FileListViewModel @Inject constructor(
                 } else {
                     addToFavoritesUseCase(file.uri)
                 }
-                // The list will be updated automatically by the flow when favorites change
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     error = "Failed to toggle favorite: ${e.message}"
@@ -158,36 +112,111 @@ class FileListViewModel @Inject constructor(
     }
 
     fun triggerIndexing() {
-        viewModelScope.launch {
-            try {
-                _uiState.value = _uiState.value.copy(isIndexing = true)
-                Log.d("FileListViewModel", "Triggering manual indexing...")
-                val indexingRequest = OneTimeWorkRequestBuilder<FileIndexerWorker>().build()
-                WorkManager.getInstance(context).enqueue(indexingRequest)
-                Log.d("FileListViewModel", "Manual indexing request enqueued")
-            } catch (e: Exception) {
-                Log.e("FileListViewModel", "Failed to start indexing", e)
-                _uiState.value = _uiState.value.copy(
-                    error = "Failed to start indexing: ${e.message}",
-                    isIndexing = false
-                )
-            }
-        }
+        requestIndexing()
     }
 
     fun refreshIndex() {
+        requestIndexing()
+    }
+
+    private fun bootstrap() {
+        val storedUri = getStoredDocumentTreeUseCase()
+        // 启动时加载根目录，但不改变搜索模式（保持 FULL_TEXT）
+        if (storedUri != null) {
+            _uiState.value = _uiState.value.copy(
+                currentDirectory = storedUri.toDirectoryInfo(),
+                pathHistory = emptyList()
+            )
+        }
+        loadFiles(storedUri)
         triggerIndexing()
-        loadFiles(_uiState.value.currentDirectory?.uri)
+    }
+
+    private fun loadFiles(uri: Uri?) {
+        safeLogD("FileListViewModel", "loadFiles called with uri: $uri")
+        loadFilesJob?.cancel()
+
+        loadFilesJob = viewModelScope.launch {
+            val state = _uiState.value
+            val useDatabase = state.queryMode == FileListQueryMode.FULL_TEXT
+            val effectiveUri = uri
+
+            _uiState.value = _uiState.value.loading()
+            safeLogD(
+                "FileListViewModel",
+                "Starting getOrgFilesUseCase with query: '${state.searchQuery}', useDatabase: $useDatabase, effectiveUri: $effectiveUri"
+            )
+
+            getOrgFilesUseCase(effectiveUri, state.searchQuery, useDatabase)
+                .catch { error ->
+                    safeLogE("FileListViewModel", "Error in getOrgFilesUseCase", error)
+                    _uiState.value = _uiState.value.loadFailed(
+                        error.message ?: "Unknown error occurred"
+                    )
+                }
+                .collect { files ->
+                    safeLogD("FileListViewModel", "Received ${files.size} files from use case")
+                    _uiState.value = _uiState.value.loaded(files = files)
+                    safeLogD("FileListViewModel", "Updated UI state with ${files.size} files")
+                }
+        }
+    }
+
+    private fun scheduleSearchRefresh() {
+        searchDebounceJob?.cancel()
+        searchDebounceJob = viewModelScope.launch {
+            delay(300)
+            loadFiles(_uiState.value.currentDirectoryUri)
+        }
+    }
+
+    private fun navigateTo(uri: Uri, pathHistory: List<Uri>) {
+        searchDebounceJob?.cancel()
+        _uiState.value = _uiState.value.navigatedTo(
+            directory = uri.toDirectoryInfo(),
+            pathHistory = pathHistory
+        )
+        loadFiles(uri)
+    }
+
+    private fun requestIndexing() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.indexRequestStarted()
+            safeLogD("FileListViewModel", "Requesting file indexing work...")
+            when (val result = fileIndexScheduler.requestIndexing()) {
+                FileIndexRequestResult.Enqueued -> {
+                    safeLogD("FileListViewModel", "File indexing work request enqueued")
+                    _uiState.value = _uiState.value.indexRequestEnqueued()
+                }
+                is FileIndexRequestResult.Failed -> {
+                    val message = "Failed to start indexing: ${result.message}"
+                    safeLogE("FileListViewModel", message)
+                    _uiState.value = _uiState.value.indexRequestFailed(message)
+                }
+            }
+        }
     }
 }
 
-data class FileListUiState(
-    val isLoading: Boolean = false,
-    val isIndexing: Boolean = false,
-    val files: List<OrgFileInfo> = emptyList(),
-    val error: String? = null,
-    val currentDirectory: OrgFileInfo? = null,
-    val pathHistory: List<Uri> = emptyList(),
-    val searchQuery: String = "",
-    val isSearchEnabled: Boolean = false
+private fun Uri.toDirectoryInfo(): OrgFileInfo = OrgFileInfo(
+    uri = this,
+    name = pathSegments.lastOrNull().orEmpty(),
+    lastModified = 0,
+    isDirectory = true,
+    size = 0,
+    isFavorite = false
 )
+
+private fun safeLogD(tag: String, message: String) {
+    runCatching { Log.d(tag, message) }
+}
+
+private fun safeLogE(tag: String, message: String, throwable: Throwable? = null) {
+    runCatching {
+        if (throwable != null) {
+            Log.e(tag, message, throwable)
+        } else {
+            Log.e(tag, message)
+        }
+    }
+}

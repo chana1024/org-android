@@ -36,7 +36,7 @@ class CaptureViewModel @Inject constructor(
                 .onSuccess {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        successMessage = "内容已成功添加到 capture.org！"
+                        successMessage = "内容已成功添加到 gtd/inbox.org！"
                     )
                 }
                 .onFailure { exception ->

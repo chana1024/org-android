@@ -74,7 +74,7 @@ fun CaptureScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "输入您的想法或待办事项，将自动添加到 capture.org 文件中",
+                        text = "输入您的想法或待办事项，将自动添加到 gtd/inbox.org 文件中",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
                         lineHeight = 20.sp
@@ -161,7 +161,7 @@ fun CaptureScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "添加到 capture.org",
+                                text = "添加到 gtd/inbox.org",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Medium
                             )

@@ -48,6 +48,15 @@ interface FileDao {
     )
     suspend fun searchFilesByContent(ftsQuery: String): List<FileMetadataEntity>
 
+    @Query(
+        """
+        SELECT m.* FROM file_metadata m
+        INNER JOIN file_content_fts f ON m.path = f.path
+        WHERE f.content LIKE '%' || :query || '%'
+        """
+    )
+    suspend fun searchFilesByContentLike(query: String): List<FileMetadataEntity>
+
     @Query("SELECT path FROM file_metadata")
     suspend fun getAllFilePaths(): List<String>
 }

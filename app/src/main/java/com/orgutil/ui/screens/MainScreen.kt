@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
@@ -15,8 +16,8 @@ fun MainScreen(
     onFileSelected: (Uri) -> Unit,
     onNavigateToCapture: () -> Unit
 ) {
-    // Default to favorites tab (index 1)
-    var selectedTabIndex by remember { mutableStateOf(1) }
+    // Default to files tab, and preserve the selected tab when navigating away/back
+    var selectedTabIndex by rememberSaveable { mutableStateOf(0) }
 
     Row(modifier = Modifier.fillMaxSize()) {
         // Vertical tabs on the left edge
@@ -30,8 +31,7 @@ fun MainScreen(
             when (selectedTabIndex) {
                 0 -> FileListScreen(
                     onFileSelected = onFileSelected,
-                    onNavigateToCapture = onNavigateToCapture,
-                    onNavigateToFavorites = {} // No longer needed in tabbed view
+                    onNavigateToCapture = onNavigateToCapture
                 )
                 1 -> FavoritesScreen(
                     onFileSelected = onFileSelected,

@@ -6,6 +6,7 @@ import com.orgutil.domain.model.OrgFileInfo
 interface FileDataSource {
     suspend fun getOrgFiles(uri: Uri? = null, query: String? = null): List<OrgFileInfo>
     suspend fun getAllOrgFiles(): List<OrgFileInfo>  // For indexing - returns all .org files for indexing
+    suspend fun getAllOrgFilesUnder(uri: Uri): List<OrgFileInfo>
     suspend fun getFileInfo(uri: Uri): OrgFileInfo?  // Get metadata for a specific file by URI
     suspend fun readFile(uri: Uri): String
     suspend fun writeFile(uri: Uri, content: String)
@@ -15,6 +16,7 @@ interface FileDataSource {
     suspend fun requestDocumentAccess(): Boolean
     suspend fun appendToCaptureFile(content: String)
     suspend fun getCaptureFileSize(): Long
+    suspend fun getCaptureFileUri(): Uri?
     fun storeTreeUri(uri: Uri)
     fun getStoredTreeUri(): Uri?
 }

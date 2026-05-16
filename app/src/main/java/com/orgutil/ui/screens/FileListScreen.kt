@@ -8,27 +8,25 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.activity.compose.BackHandler
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.orgutil.R
 import com.orgutil.domain.model.OrgFileInfo
+import com.orgutil.ui.viewmodel.FileListQueryMode
 import com.orgutil.ui.viewmodel.FileListViewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -38,11 +36,19 @@ import java.util.*
 fun FileListScreen(
     onFileSelected: (Uri) -> Unit,
     onNavigateToCapture: () -> Unit,
-    onNavigateToFavorites: () -> Unit = {},
     viewModel: FileListViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
+    val isFullText = uiState.isFullTextMode
+
+    val searchLabel = if (isFullText)
+        stringResource(R.string.search_label_global_search)
+    else
+        stringResource(R.string.search_label_global_list)
+    val searchPlaceholder = if (isFullText)
+        stringResource(R.string.search_placeholder_global_search)
+    else
+        stringResource(R.string.search_placeholder_global_list)
 
     val documentTreeLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -52,7 +58,7 @@ fun FileListScreen(
         }
     }
 
-    BackHandler(enabled = uiState.pathHistory.isNotEmpty()) {
+    BackHandler(enabled = uiState.canNavigateBack) {
         viewModel.onBackButtonPressed()
     }
 
@@ -65,40 +71,64 @@ fun FileListScreen(
                         Text(text = title)
                     },
                     navigationIcon = {
-                        if (uiState.pathHistory.isNotEmpty()) {
+                        if (uiState.canNavigateBack) {
                             IconButton(onClick = { viewModel.onBackButtonPressed() }) {
                                 Icon(
-                                    imageVector = Icons.Default.ArrowBack,
-                                    contentDescription = "Back"
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = stringResource(R.string.back)
                                 )
                             }
                         }
                     },
                     actions = {
-                        // Search mode toggle button
-                        IconButton(onClick = { viewModel.toggleSearchMode() }) {
-                            Icon(
-                                imageVector = if (uiState.isSearchEnabled) Icons.Default.Search else Icons.Default.SearchOff,
-                                contentDescription = if (uiState.isSearchEnabled) "Database Search Enabled" else "Database Search Disabled",
-                                tint = if (uiState.isSearchEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        IconButton(onClick = { viewModel.loadFiles(uiState.currentDirectory?.uri) }) {
+                        IconButton(onClick = viewModel::refreshCurrentLocation) {
                             Icon(
                                 imageVector = Icons.Default.Refresh,
-                                contentDescription = "Refresh"
+                                contentDescription = stringResource(R.string.refresh)
                             )
                         }
                     }
                 )
-                OutlinedTextField(
-                    value = uiState.searchQuery,
-                    onValueChange = { viewModel.onSearchQueryChanged(it) },
-                    label = { Text("Search") },
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                )
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = uiState.searchQuery,
+                        onValueChange = { viewModel.onSearchQueryChanged(it) },
+                        label = { Text(searchLabel) },
+                        placeholder = { Text(searchPlaceholder) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = !isFullText,
+                            onClick = {
+                                if (isFullText) viewModel.setSearchMode(FileListQueryMode.FILE_LIST)
+                            },
+                            label = { Text(stringResource(R.string.search_mode_file_list)) }
+                        )
+                        FilterChip(
+                            selected = isFullText,
+                            onClick = {
+                                if (!isFullText) viewModel.setSearchMode(FileListQueryMode.FULL_TEXT)
+                            },
+                            label = { Text(stringResource(R.string.search_mode_full_text)) }
+                        )
+                    }
+                    if (uiState.isBrowsingDirectory) {
+                        Text(
+                            text = stringResource(R.string.search_mode_hint_directory),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         },
         floatingActionButton = {
@@ -113,7 +143,7 @@ fun FileListScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Edit,
-                        contentDescription = "快速记录"
+                        contentDescription = stringResource(R.string.quick_capture)
                     )
                 }
                 
@@ -154,7 +184,7 @@ fun FileListScreen(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Button(onClick = { viewModel.clearError() }) {
-                            Text("Dismiss")
+                            Text(stringResource(R.string.dismiss))
                         }
                     }
                 }
@@ -165,7 +195,18 @@ fun FileListScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = if (uiState.searchQuery.isNotEmpty()) "No files found for '${uiState.searchQuery}'" else stringResource(R.string.no_files_found),
+                            text = when {
+                                uiState.searchQuery.isEmpty() -> stringResource(R.string.no_files_found)
+                                uiState.isBrowsingDirectory && !uiState.isFullTextMode -> stringResource(
+                                    R.string.no_files_found_in_folder,
+                                    uiState.searchQuery
+                                )
+                                uiState.isFullTextMode -> stringResource(
+                                    R.string.no_indexed_content_found,
+                                    uiState.searchQuery
+                                )
+                                else -> stringResource(R.string.no_files_found_for_query, uiState.searchQuery)
+                            },
                             style = MaterialTheme.typography.bodyLarge
                         )
                         if (uiState.searchQuery.isEmpty()) {

@@ -25,10 +25,9 @@ class OrgParserWrapperTest {
         """.trimIndent()
 
         // When
-        val result = orgParserWrapper.parseContent(orgContent)
+        val (_, result) = orgParserWrapper.parseContent(orgContent)
 
         // Then
-        assertNotNull(result)
         assertTrue(result.isNotEmpty())
         
         val firstNode = result.first()
@@ -63,7 +62,7 @@ class OrgParserWrapperTest {
         """.trimIndent()
 
         // When
-        val result = orgParserWrapper.parseContent(orgContent)
+        val (_, result) = orgParserWrapper.parseContent(orgContent)
 
         // Then
         assertNotNull(result)
@@ -109,7 +108,7 @@ class OrgParserWrapperTest {
         """.trimIndent()
 
         // When
-        val result = orgParserWrapper.parseContent(orgContent)
+        val (_, result) = orgParserWrapper.parseContent(orgContent)
 
         // Then
         assertNotNull(result)
@@ -152,10 +151,9 @@ class OrgParserWrapperTest {
         val emptyContent = ""
 
         // When
-        val result = orgParserWrapper.parseContent(emptyContent)
+        val (_, result) = orgParserWrapper.parseContent(emptyContent)
 
         // Then
-        assertNotNull(result)
         assertTrue(result.isEmpty())
     }
 
@@ -174,7 +172,7 @@ class OrgParserWrapperTest {
         )
 
         // When
-        val result = orgParserWrapper.writeContent(nodes)
+        val result = orgParserWrapper.writeContent("", nodes)
 
         // Then
         assertNotNull(result)
@@ -191,7 +189,7 @@ class OrgParserWrapperTest {
         val emptyNodes = emptyList<OrgNode>()
 
         // When
-        val result = orgParserWrapper.writeContent(emptyNodes)
+        val result = orgParserWrapper.writeContent("", emptyNodes)
 
         // Then
         assertNotNull(result)
