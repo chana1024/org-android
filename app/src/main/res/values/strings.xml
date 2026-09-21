@@ -67,7 +67,7 @@
     <string name="sync_repo_override_label">Repo root path (override)</string>
     <string name="sync_repo_use_path">Use this path</string>
     <string name="sync_remote_section">Remote</string>
-    <string name="sync_remote_url_label">Remote URL (HTTPS)</string>
+    <string name="sync_remote_url_label">Remote URL (https/git/file)</string>
     <string name="sync_username_label">Username</string>
     <string name="sync_token_label">Token</string>
     <string name="sync_save">Save</string>

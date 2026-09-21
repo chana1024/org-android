@@ -87,8 +87,12 @@ class SyncViewModel @Inject constructor(
             _uiState.update { it.copy(error = "Remote URL is required") }
             return
         }
-        if (!state.remoteUrl.startsWith("https://") && !state.remoteUrl.startsWith("http://")) {
-            _uiState.update { it.copy(error = "Remote URL must be an HTTPS URL") }
+        val url = state.remoteUrl.trim()
+        val allowedScheme = listOf("https://", "http://", "git://", "file://").any { url.startsWith(it) }
+        if (!allowedScheme) {
+            _uiState.update {
+                it.copy(error = "Remote URL must be an https/http/git/file URL")
+            }
             return
         }
         if (state.username.isBlank() || state.token.isBlank()) {
