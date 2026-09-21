@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.EventNote
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
@@ -41,6 +42,7 @@ fun MainScreen(
                 2 -> AgendaScreen(
                     onFileSelected = onFileSelected
                 )
+                3 -> SyncScreen()
             }
         }
     }
@@ -89,6 +91,16 @@ private fun VerticalTabBar(
                 onClick = { onTabSelected(2) },
                 icon = Icons.AutoMirrored.Filled.EventNote,
                 label = "Agenda"
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Git sync tab
+            VerticalTab(
+                selected = selectedTabIndex == 3,
+                onClick = { onTabSelected(3) },
+                icon = Icons.Default.CloudSync,
+                label = "Sync"
             )
         }
     }

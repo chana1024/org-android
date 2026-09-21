@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,6 +31,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.orgutil.R
 import com.orgutil.domain.indexing.FileIndexStatus
 import com.orgutil.domain.model.OrgFileInfo
+import com.orgutil.domain.sync.GitSyncStatus
 import com.orgutil.ui.viewmodel.FileListQueryMode
 import com.orgutil.ui.viewmodel.FileListViewModel
 import java.text.SimpleDateFormat
@@ -86,6 +88,16 @@ fun FileListScreen(
                     },
                     actions = {
                         IconButton(
+                            onClick = viewModel::requestGitSync,
+                            enabled = uiState.gitSyncStatus !is GitSyncStatus.Running &&
+                                uiState.gitSyncStatus !is GitSyncStatus.Enqueued
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CloudSync,
+                                contentDescription = stringResource(R.string.git_sync_now)
+                            )
+                        }
+                        IconButton(
                             onClick = viewModel::refreshIndex,
                             enabled = !uiState.isIndexRequestInFlight
                         ) {
@@ -138,6 +150,7 @@ fun FileListScreen(
                         status = uiState.indexStatus,
                         isRequestInFlight = uiState.isIndexRequestInFlight
                     )
+                    GitSyncStatusChip(status = uiState.gitSyncStatus)
                     if (uiState.isBrowsingDirectory) {
                         Text(
                             text = stringResource(R.string.search_mode_hint_directory),
@@ -293,6 +306,38 @@ private fun IndexStatusMonitor(
         label = { Text(text) },
         leadingIcon = {
             if (isRequestInFlight || status == FileIndexStatus.Running) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp
+                )
+            }
+        }
+    )
+}
+
+@Composable
+private fun GitSyncStatusChip(status: GitSyncStatus) {
+    val text = when (status) {
+        GitSyncStatus.Idle -> stringResource(R.string.git_sync_status_idle)
+        GitSyncStatus.Enqueued -> stringResource(R.string.git_sync_status_queued)
+        is GitSyncStatus.Running -> stringResource(R.string.git_sync_status_running)
+        is GitSyncStatus.Succeeded -> stringResource(
+            R.string.git_sync_status_succeeded,
+            SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(status.at))
+        )
+        is GitSyncStatus.Conflict ->
+            stringResource(R.string.git_sync_status_conflict, status.files.size)
+        is GitSyncStatus.Failed ->
+            stringResource(R.string.git_sync_status_failed, status.message)
+    }
+    val isBusy = status is GitSyncStatus.Running || status is GitSyncStatus.Enqueued
+
+    AssistChip(
+        onClick = {},
+        enabled = false,
+        label = { Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        leadingIcon = {
+            if (isBusy) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(16.dp),
                     strokeWidth = 2.dp

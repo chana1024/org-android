@@ -97,7 +97,7 @@ internal interface WorkManagerGateway {
     fun observeUniqueWork(name: String): Flow<List<WorkInfo>>
 }
 
-private class AndroidxWorkManagerGateway(
+internal class AndroidxWorkManagerGateway(
     context: Context
 ) : WorkManagerGateway {
     private val workManager = WorkManager.getInstance(context)

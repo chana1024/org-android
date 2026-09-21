@@ -12,6 +12,7 @@ import com.orgutil.domain.usecase.GetOrgFilesUseCase
 import com.orgutil.domain.usecase.GetStoredDocumentTreeUseCase
 import com.orgutil.domain.usecase.RemoveFromFavoritesUseCase
 import com.orgutil.domain.usecase.StoreDocumentTreeUseCase
+import com.orgutil.domain.sync.GitSyncScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -29,7 +30,8 @@ class FileListViewModel @Inject constructor(
     private val removeFromFavoritesUseCase: RemoveFromFavoritesUseCase,
     private val storeDocumentTreeUseCase: StoreDocumentTreeUseCase,
     private val getStoredDocumentTreeUseCase: GetStoredDocumentTreeUseCase,
-    private val fileIndexScheduler: FileIndexScheduler
+    private val fileIndexScheduler: FileIndexScheduler,
+    private val gitSyncScheduler: GitSyncScheduler
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(FileListUiState())
@@ -40,6 +42,7 @@ class FileListViewModel @Inject constructor(
 
     init {
         observeIndexing()
+        observeGitSync()
         bootstrap()
     }
 
@@ -118,6 +121,19 @@ class FileListViewModel @Inject constructor(
 
     fun refreshIndex() {
         requestIndexing()
+    }
+
+    fun requestGitSync() {
+        gitSyncScheduler.requestSync()
+    }
+
+    private fun observeGitSync() {
+        viewModelScope.launch {
+            gitSyncScheduler.observeSync()
+                .collect { status ->
+                    _uiState.value = _uiState.value.copy(gitSyncStatus = status)
+                }
+        }
     }
 
     private fun bootstrap() {

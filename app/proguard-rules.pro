@@ -29,3 +29,12 @@
 -keepclassmembers class * {
     @dagger.hilt.android.AndroidEntryPoint <methods>;
 }
+
+# JGit: uses reflection for translation bundles and FS detection
+-keep class org.eclipse.jgit.** { *; }
+-keepclassmembers class org.eclipse.jgit.internal.JGitText { public static *; }
+-dontwarn org.eclipse.jgit.**
+-dontwarn org.slf4j.**
+-dontwarn javax.naming.**
+-dontwarn java.beans.**
+-keep class org.slf4j.** { *; }

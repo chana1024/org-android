@@ -48,4 +48,39 @@
     <string name="index_status_running">Index monitor: running</string>
     <string name="index_status_succeeded">Index monitor: up to date</string>
     <string name="index_status_failed">Index monitor: %1$s</string>
+
+    <!-- Git sync -->
+    <string name="git_sync_now">Sync with git remote</string>
+    <string name="git_sync_status_idle">Git: idle</string>
+    <string name="git_sync_status_queued">Git: queued</string>
+    <string name="git_sync_status_running">Git: syncing…</string>
+    <string name="git_sync_status_succeeded">Git: synced %1$s</string>
+    <string name="git_sync_status_conflict">Git: union-merged %1$d conflict(s)</string>
+    <string name="git_sync_status_failed">Git: %1$s</string>
+    <string name="sync_title">Git Sync</string>
+    <string name="sync_storage_section">Storage access</string>
+    <string name="sync_storage_explanation">Git sync needs direct access to the notes repository. Grant \"All files access\" so the app can read and write the whole repo.</string>
+    <string name="sync_storage_granted">Storage access granted</string>
+    <string name="sync_storage_grant">Grant storage access</string>
+    <string name="sync_repo_section">Repository</string>
+    <string name="sync_repo_not_found">No git repository found</string>
+    <string name="sync_repo_override_label">Repo root path (override)</string>
+    <string name="sync_repo_use_path">Use this path</string>
+    <string name="sync_remote_section">Remote</string>
+    <string name="sync_remote_url_label">Remote URL (HTTPS)</string>
+    <string name="sync_username_label">Username</string>
+    <string name="sync_token_label">Token</string>
+    <string name="sync_save">Save</string>
+    <string name="sync_test_connection">Test connection</string>
+    <string name="sync_actions_section">Sync</string>
+    <string name="sync_now">Sync now</string>
+    <string name="sync_last_sync">Last sync: %1$s</string>
+    <string name="sync_repo_state">Branch: %1$s · ahead %2$d · behind %3$d</string>
+    <string name="sync_branch_detached">detached</string>
+    <string name="sync_auto_on_launch">Sync automatically on app launch</string>
+    <string name="sync_status_queued">Sync queued…</string>
+    <string name="sync_status_running">Syncing: %1$s…</string>
+    <string name="sync_status_succeeded">Sync succeeded: %1$s</string>
+    <string name="sync_status_conflict">Synced with union merge of: %1$s</string>
+    <string name="sync_status_failed">Sync failed: %1$s</string>
 </resources>

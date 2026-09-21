@@ -6,6 +6,8 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.orgutil.domain.indexing.FileIndexRequestResult
 import com.orgutil.domain.indexing.FileIndexScheduler
+import com.orgutil.domain.sync.GitSyncRequestResult
+import com.orgutil.domain.sync.GitSyncScheduler
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
@@ -17,6 +19,9 @@ class OrgUtilApplication: Application(), Configuration.Provider {
 
     @Inject
     lateinit var fileIndexScheduler: FileIndexScheduler
+
+    @Inject
+    lateinit var gitSyncScheduler: GitSyncScheduler
 
     override val workManagerConfiguration: Configuration
         get() {
@@ -31,6 +36,7 @@ class OrgUtilApplication: Application(), Configuration.Provider {
         super.onCreate()
         safeLogD("OrgUtilApplication", "Application onCreate called")
         setupFileIndexer()
+        scheduleStartupSync()
     }
 
     private fun setupFileIndexer() {
@@ -41,6 +47,22 @@ class OrgUtilApplication: Application(), Configuration.Provider {
             }
             is FileIndexRequestResult.Failed -> {
                 safeLogE("OrgUtilApplication", "Failed to setup FileIndexer worker: ${result.message}")
+            }
+        }
+    }
+
+    private fun scheduleStartupSync() {
+        // Fire-and-forget: unique work with KEEP coalesces with any pending sync,
+        // and the NetworkType.CONNECTED constraint parks it while offline.
+        when (val result = gitSyncScheduler.requestSyncIfConfigured()) {
+            GitSyncRequestResult.Enqueued -> {
+                safeLogD("OrgUtilApplication", "Startup git sync scheduled")
+            }
+            GitSyncRequestResult.NotConfigured -> {
+                safeLogD("OrgUtilApplication", "Git sync not configured; skipped startup sync")
+            }
+            is GitSyncRequestResult.Failed -> {
+                safeLogE("OrgUtilApplication", "Failed to schedule startup git sync: ${result.message}")
             }
         }
     }

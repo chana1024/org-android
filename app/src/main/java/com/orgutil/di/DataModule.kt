@@ -3,15 +3,19 @@ package com.orgutil.di
 import com.orgutil.data.datasource.FileDataSource
 import com.orgutil.data.datasource.FileDataSourceImpl
 import com.orgutil.data.repository.FavoriteRepositoryImpl
+import com.orgutil.data.repository.GitSyncRepositoryImpl
 import com.orgutil.data.repository.OrgAgendaRepositoryImpl
 import com.orgutil.data.repository.OrgFileIndexUpdater
 import com.orgutil.data.repository.OrgFileRepositoryImpl
 import com.orgutil.domain.indexing.FileIndexRunner
 import com.orgutil.domain.indexing.FileIndexScheduler
 import com.orgutil.domain.repository.FavoriteRepository
+import com.orgutil.domain.repository.GitSyncRepository
 import com.orgutil.domain.repository.OrgAgendaRepository
 import com.orgutil.domain.repository.OrgFileRepository
+import com.orgutil.domain.sync.GitSyncScheduler
 import com.orgutil.worker.WorkManagerFileIndexScheduler
+import com.orgutil.worker.WorkManagerGitSyncScheduler
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -57,4 +61,16 @@ abstract class DataModule {
     abstract fun bindFileIndexScheduler(
         workManagerFileIndexScheduler: WorkManagerFileIndexScheduler
     ): FileIndexScheduler
+
+    @Binds
+    @Singleton
+    abstract fun bindGitSyncRepository(
+        gitSyncRepositoryImpl: GitSyncRepositoryImpl
+    ): GitSyncRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindGitSyncScheduler(
+        workManagerGitSyncScheduler: WorkManagerGitSyncScheduler
+    ): GitSyncScheduler
 }

@@ -43,6 +43,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
+        isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions {
         jvmTarget = "1.8"
@@ -56,6 +57,7 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "META-INF/LICENSE*"
         }
     }
 }
@@ -111,6 +113,17 @@ dependencies {
 
     // WorkManager
     implementation("androidx.work:work-runtime-ktx:2.9.0")
+
+    // JGit for git sync
+    implementation("org.eclipse.jgit:org.eclipse.jgit:6.10.0.202406032230-r")
+    // JGit logs via SLF4J; slf4j-nop is a plain-jar no-op binding that also works in JVM unit tests
+    implementation("org.slf4j:slf4j-nop:1.7.36")
+
+    // EncryptedSharedPreferences for git credentials
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    // Core library desugaring (java.* APIs JGit references on older min SDKs)
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 
     // Testing
     testImplementation("junit:junit:4.13.2")

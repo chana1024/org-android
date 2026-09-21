@@ -11,6 +11,8 @@ import com.orgutil.domain.usecase.GetOrgFilesUseCase
 import com.orgutil.domain.usecase.GetStoredDocumentTreeUseCase
 import com.orgutil.domain.usecase.RemoveFromFavoritesUseCase
 import com.orgutil.domain.usecase.StoreDocumentTreeUseCase
+import com.orgutil.domain.sync.GitSyncScheduler
+import com.orgutil.domain.sync.GitSyncStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
@@ -41,6 +43,7 @@ val instantTaskExecutorRule = InstantTaskExecutorRule()
 @Mock lateinit var storeDocumentTreeUseCase: StoreDocumentTreeUseCase
 @Mock lateinit var getStoredDocumentTreeUseCase: GetStoredDocumentTreeUseCase
 @Mock lateinit var fileIndexScheduler: FileIndexScheduler
+@Mock lateinit var gitSyncScheduler: GitSyncScheduler
 @Mock lateinit var mockUri: Uri
 
 private lateinit var viewModel: FileListViewModel
@@ -51,6 +54,7 @@ fun setup() {
 MockitoAnnotations.openMocks(this)
 Dispatchers.setMain(testDispatcher)
 `when`(fileIndexScheduler.observeIndexing()).thenReturn(flowOf(FileIndexStatus.Idle))
+`when`(gitSyncScheduler.observeSync()).thenReturn(flowOf(GitSyncStatus.Idle))
 }
 
 @After
@@ -65,7 +69,8 @@ addToFavoritesUseCase = addToFavoritesUseCase,
 removeFromFavoritesUseCase = removeFromFavoritesUseCase,
 storeDocumentTreeUseCase = storeDocumentTreeUseCase,
 getStoredDocumentTreeUseCase = getStoredDocumentTreeUseCase,
-fileIndexScheduler = fileIndexScheduler
+fileIndexScheduler = fileIndexScheduler,
+gitSyncScheduler = gitSyncScheduler
 )
 }
 

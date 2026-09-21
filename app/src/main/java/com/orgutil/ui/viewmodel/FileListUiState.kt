@@ -3,6 +3,7 @@ package com.orgutil.ui.viewmodel
 import android.net.Uri
 import com.orgutil.domain.indexing.FileIndexStatus
 import com.orgutil.domain.model.OrgFileInfo
+import com.orgutil.domain.sync.GitSyncStatus
 
 /**
  * 搜索模式，只有两种：
@@ -24,7 +25,8 @@ data class FileListUiState(
     val pathHistory: List<Uri> = emptyList(),
     val searchQuery: String = "",
     val queryMode: FileListQueryMode = FileListQueryMode.FULL_TEXT,
-    val indexStatus: FileIndexStatus = FileIndexStatus.Idle
+    val indexStatus: FileIndexStatus = FileIndexStatus.Idle,
+    val gitSyncStatus: GitSyncStatus = GitSyncStatus.Idle
 ) {
     /** 是否处于子目录浏览 */
     val isBrowsingDirectory: Boolean
