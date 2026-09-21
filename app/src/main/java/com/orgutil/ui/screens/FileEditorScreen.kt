@@ -3,7 +3,7 @@ package com.orgutil.ui.screens
 import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -13,35 +13,65 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.orgutil.R
 import com.orgutil.ui.components.OrgRenderer
 import com.orgutil.ui.viewmodel.FileEditorViewModel
-import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileEditorScreen(
     fileUriString: String?,
+    highlightOffset: Int? = null,
+    highlightLength: Int? = null,
+    highlightQuery: String? = null,
     onNavigateBack: () -> Unit,
     viewModel: FileEditorViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val editorFocusRequester = remember { FocusRequester() }
+    var editorValue by remember { mutableStateOf(TextFieldValue("")) }
     
     // State for global fold toggle
     var globalFoldState by remember { mutableStateOf<Boolean?>(null) }
     
-    LaunchedEffect(fileUriString) {
+    LaunchedEffect(fileUriString, highlightOffset, highlightLength, highlightQuery) {
         fileUriString?.let { encodedUriString ->
             try {
                 val uri = Uri.parse(encodedUriString)
-                viewModel.loadFile(uri)
+                viewModel.loadFile(
+                    uri = uri,
+                    highlightOffset = highlightOffset,
+                    highlightLength = highlightLength,
+                    highlightQuery = highlightQuery
+                )
             } catch (e: Exception) {
                 // Handle invalid URI
             }
+        }
+    }
+
+    LaunchedEffect(uiState.document?.uri) {
+        if (uiState.document != null) {
+            editorValue = TextFieldValue(uiState.editedContent)
+        }
+    }
+
+    LaunchedEffect(uiState.highlightStart, uiState.highlightEnd, uiState.document?.uri) {
+        val start = uiState.highlightStart
+        val end = uiState.highlightEnd
+        if (start != null && end != null && uiState.document != null) {
+            editorValue = TextFieldValue(
+                text = uiState.editedContent,
+                selection = TextRange(start, end)
+            )
+            editorFocusRequester.requestFocus()
         }
     }
     
@@ -63,7 +93,7 @@ fun FileEditorScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back"
                         )
                     }
@@ -186,11 +216,15 @@ fun FileEditorScreen(
                         } else {
                             // Text editor
                             OutlinedTextField(
-                                value = uiState.editedContent,
-                                onValueChange = { viewModel.updateContent(it) },
+                                value = editorValue,
+                                onValueChange = {
+                                    editorValue = it
+                                    viewModel.updateContent(it.text)
+                                },
                                 modifier = Modifier
                                     .weight(1f)
-                                    .padding(16.dp),
+                                    .padding(16.dp)
+                                    .focusRequester(editorFocusRequester),
                                 label = { Text("Content") },
                                 placeholder = { Text("Enter your org-mode content here...") },
                                 maxLines = Int.MAX_VALUE,

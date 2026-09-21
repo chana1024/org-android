@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import com.orgutil.domain.indexing.FileIndexRequestResult
 import com.orgutil.domain.indexing.FileIndexScheduler
+import com.orgutil.domain.indexing.FileIndexStatus
 import com.orgutil.domain.model.OrgFileInfo
 import com.orgutil.domain.usecase.AddToFavoritesUseCase
 import com.orgutil.domain.usecase.GetOrgFilesUseCase
@@ -49,6 +50,7 @@ private val testDispatcher = StandardTestDispatcher()
 fun setup() {
 MockitoAnnotations.openMocks(this)
 Dispatchers.setMain(testDispatcher)
+`when`(fileIndexScheduler.observeIndexing()).thenReturn(flowOf(FileIndexStatus.Idle))
 }
 
 @After
@@ -65,6 +67,19 @@ storeDocumentTreeUseCase = storeDocumentTreeUseCase,
 getStoredDocumentTreeUseCase = getStoredDocumentTreeUseCase,
 fileIndexScheduler = fileIndexScheduler
 )
+}
+
+@Test
+fun `observes indexing status from scheduler`() = runTest {
+`when`(getStoredDocumentTreeUseCase()).thenReturn(null)
+`when`(getOrgFilesUseCase(null, "", true)).thenReturn(flowOf(emptyList()))
+`when`(fileIndexScheduler.requestIndexing()).thenReturn(FileIndexRequestResult.Enqueued)
+`when`(fileIndexScheduler.observeIndexing()).thenReturn(flowOf(FileIndexStatus.Running))
+
+viewModel = createViewModel()
+testDispatcher.scheduler.advanceUntilIdle()
+
+assert(viewModel.uiState.value.indexStatus == FileIndexStatus.Running)
 }
 
 @Test

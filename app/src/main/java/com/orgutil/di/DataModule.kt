@@ -3,11 +3,13 @@ package com.orgutil.di
 import com.orgutil.data.datasource.FileDataSource
 import com.orgutil.data.datasource.FileDataSourceImpl
 import com.orgutil.data.repository.FavoriteRepositoryImpl
+import com.orgutil.data.repository.OrgAgendaRepositoryImpl
 import com.orgutil.data.repository.OrgFileIndexUpdater
 import com.orgutil.data.repository.OrgFileRepositoryImpl
 import com.orgutil.domain.indexing.FileIndexRunner
 import com.orgutil.domain.indexing.FileIndexScheduler
 import com.orgutil.domain.repository.FavoriteRepository
+import com.orgutil.domain.repository.OrgAgendaRepository
 import com.orgutil.domain.repository.OrgFileRepository
 import com.orgutil.worker.WorkManagerFileIndexScheduler
 import dagger.Binds
@@ -25,6 +27,12 @@ abstract class DataModule {
     abstract fun bindOrgFileRepository(
         orgFileRepositoryImpl: OrgFileRepositoryImpl
     ): OrgFileRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindOrgAgendaRepository(
+        orgAgendaRepositoryImpl: OrgAgendaRepositoryImpl
+    ): OrgAgendaRepository
 
     @Binds
     @Singleton

@@ -15,16 +15,20 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.orgutil.R
+import com.orgutil.domain.indexing.FileIndexStatus
 import com.orgutil.domain.model.OrgFileInfo
 import com.orgutil.ui.viewmodel.FileListQueryMode
 import com.orgutil.ui.viewmodel.FileListViewModel
@@ -34,7 +38,7 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileListScreen(
-    onFileSelected: (Uri) -> Unit,
+    onFileSelected: (Uri, Int?, Int?, String?) -> Unit,
     onNavigateToCapture: () -> Unit,
     viewModel: FileListViewModel = hiltViewModel()
 ) {
@@ -81,6 +85,15 @@ fun FileListScreen(
                         }
                     },
                     actions = {
+                        IconButton(
+                            onClick = viewModel::refreshIndex,
+                            enabled = !uiState.isIndexRequestInFlight
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Sync,
+                                contentDescription = stringResource(R.string.index_content)
+                            )
+                        }
                         IconButton(onClick = viewModel::refreshCurrentLocation) {
                             Icon(
                                 imageVector = Icons.Default.Refresh,
@@ -121,6 +134,10 @@ fun FileListScreen(
                             label = { Text(stringResource(R.string.search_mode_full_text)) }
                         )
                     }
+                    IndexStatusMonitor(
+                        status = uiState.indexStatus,
+                        isRequestInFlight = uiState.isIndexRequestInFlight
+                    )
                     if (uiState.isBrowsingDirectory) {
                         Text(
                             text = stringResource(R.string.search_mode_hint_directory),
@@ -239,7 +256,12 @@ fun FileListScreen(
                                     if (file.isDirectory) {
                                         viewModel.onDirectoryClicked(file)
                                     } else {
-                                        onFileSelected(file.uri)
+                                        onFileSelected(
+                                            file.uri,
+                                            file.searchMatchContentOffset,
+                                            file.searchPreviewMatchLength,
+                                            uiState.searchQuery.takeIf { file.searchPreview != null }
+                                        )
                                     }
                                 },
                                 onFavoriteToggle = { viewModel.toggleFavorite(file) }
@@ -252,6 +274,34 @@ fun FileListScreen(
     }
 }
 
+@Composable
+private fun IndexStatusMonitor(
+    status: FileIndexStatus,
+    isRequestInFlight: Boolean
+) {
+    val text = when (status) {
+        FileIndexStatus.Idle -> stringResource(R.string.index_status_idle)
+        FileIndexStatus.Enqueued -> stringResource(R.string.index_status_queued)
+        FileIndexStatus.Running -> stringResource(R.string.index_status_running)
+        FileIndexStatus.Succeeded -> stringResource(R.string.index_status_succeeded)
+        is FileIndexStatus.Failed -> stringResource(R.string.index_status_failed, status.message)
+    }
+
+    AssistChip(
+        onClick = {},
+        enabled = false,
+        label = { Text(text) },
+        leadingIcon = {
+            if (isRequestInFlight || status == FileIndexStatus.Running) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp
+                )
+            }
+        }
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileItem(
@@ -260,11 +310,20 @@ fun FileItem(
     onFavoriteToggle: () -> Unit = {}
 ) {
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()) }
+    val hasSearchPreview = !file.searchPreview.isNullOrBlank()
     
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth()
     ) {
+        if (hasSearchPreview) {
+            SearchResultFileItem(
+                file = file,
+                onFavoriteToggle = onFavoriteToggle
+            )
+            return@Card
+        }
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -324,4 +383,77 @@ fun FileItem(
             }
         }
     }
+}
+
+@Composable
+private fun SearchResultFileItem(
+    file: OrgFileInfo,
+    onFavoriteToggle: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = file.name,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = file.uri.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            IconButton(onClick = onFavoriteToggle) {
+                Icon(
+                    imageVector = if (file.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = if (file.isFavorite) stringResource(R.string.remove_from_favorites) else stringResource(R.string.add_to_favorites),
+                    tint = if (file.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Text(
+            text = file.highlightedSearchPreview(),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun OrgFileInfo.highlightedSearchPreview() = buildAnnotatedString {
+    val preview = searchPreview.orEmpty()
+    val start = searchPreviewMatchStart ?: -1
+    val length = searchPreviewMatchLength ?: 0
+    val end = (start + length).coerceAtMost(preview.length)
+    if (start !in preview.indices || end <= start) {
+        append(preview)
+        return@buildAnnotatedString
+    }
+
+    append(preview.substring(0, start))
+    withStyle(
+        SpanStyle(
+            background = MaterialTheme.colorScheme.tertiaryContainer,
+            color = MaterialTheme.colorScheme.onTertiaryContainer
+        )
+    ) {
+        append(preview.substring(start, end))
+    }
+    append(preview.substring(end))
 }

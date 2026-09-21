@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.orgutil.domain.model.OrgDocument
+import com.orgutil.domain.search.SearchPreviewBuilder
 import com.orgutil.domain.usecase.ReadOrgFileUseCase
 import com.orgutil.domain.usecase.SaveOrgFileUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -23,18 +24,27 @@ class FileEditorViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(FileEditorUiState())
     val uiState: StateFlow<FileEditorUiState> = _uiState.asStateFlow()
 
-    fun loadFile(uri: Uri) {
+    fun loadFile(
+        uri: Uri,
+        highlightOffset: Int? = null,
+        highlightLength: Int? = null,
+        highlightQuery: String? = null
+    ) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             
             readOrgFileUseCase(uri)
                 .onSuccess { document ->
+                    val highlightRange = document.highlightRange(highlightOffset, highlightLength, highlightQuery)
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         document = document,
                         editedContent = document.content,
                         hasUnsavedChanges = false,
-                        error = null
+                        error = null,
+                        highlightStart = highlightRange?.first,
+                        highlightEnd = highlightRange?.second,
+                        isInViewMode = highlightRange == null
                     )
                 }
                 .onFailure { error ->
@@ -112,6 +122,25 @@ class FileEditorViewModel @Inject constructor(
     fun toggleViewMode() {
         _uiState.value = _uiState.value.copy(isInViewMode = !_uiState.value.isInViewMode)
     }
+
+    private fun OrgDocument.highlightRange(
+        highlightOffset: Int?,
+        highlightLength: Int?,
+        highlightQuery: String?
+    ): Pair<Int, Int>? {
+        if (!highlightQuery.isNullOrBlank()) {
+            val livePreview = SearchPreviewBuilder.build(content, highlightQuery)
+            if (livePreview != null) {
+                return livePreview.contentOffset to livePreview.contentOffset + livePreview.matchLength
+            }
+        }
+
+        val start = highlightOffset ?: return null
+        val length = highlightLength ?: return null
+        if (start < 0 || length <= 0 || start >= content.length) return null
+        val end = (start + length).coerceAtMost(content.length)
+        return start to end
+    }
 }
 
 data class FileEditorUiState(
@@ -122,5 +151,7 @@ data class FileEditorUiState(
     val hasUnsavedChanges: Boolean = false,
     val saveSuccess: Boolean = false,
     val error: String? = null,
-    val isInViewMode: Boolean = true
+    val isInViewMode: Boolean = true,
+    val highlightStart: Int? = null,
+    val highlightEnd: Int? = null
 )

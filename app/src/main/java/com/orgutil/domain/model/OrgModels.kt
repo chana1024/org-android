@@ -27,5 +27,9 @@ data class OrgFileInfo(
     val lastModified: Long,
     val size: Long,
     val isFavorite: Boolean = false,
-    val isDirectory: Boolean = false
+    val isDirectory: Boolean = false,
+    val searchPreview: String? = null,
+    val searchPreviewMatchStart: Int? = null,
+    val searchPreviewMatchLength: Int? = null,
+    val searchMatchContentOffset: Int? = null
 )

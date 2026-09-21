@@ -42,4 +42,10 @@
     <string name="no_files_found_in_folder">No files found in this folder for %1$s</string>
     <string name="no_indexed_content_found">No indexed content found for %1$s</string>
     <string name="no_files_found_for_query">No files found for %1$s</string>
+    <string name="index_content">Index content</string>
+    <string name="index_status_idle">Index monitor: idle</string>
+    <string name="index_status_queued">Index monitor: queued</string>
+    <string name="index_status_running">Index monitor: running</string>
+    <string name="index_status_succeeded">Index monitor: up to date</string>
+    <string name="index_status_failed">Index monitor: %1$s</string>
 </resources>

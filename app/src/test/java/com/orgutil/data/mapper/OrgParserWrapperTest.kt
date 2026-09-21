@@ -158,6 +158,23 @@ class OrgParserWrapperTest {
     }
 
     @Test
+    fun `parseContent should recognize gtd project and area keywords`() {
+        val orgContent = """
+            * PROJ Build Android agenda
+            ** NEXT Parse agenda items
+            * AREA Health
+        """.trimIndent()
+
+        val (_, result) = orgParserWrapper.parseContent(orgContent)
+
+        assertEquals("PROJ", result[0].todo)
+        assertEquals("Build Android agenda", result[0].title)
+        assertEquals("NEXT", result[0].children[0].todo)
+        assertEquals("AREA", result[1].todo)
+        assertEquals("Health", result[1].title)
+    }
+
+    @Test
     fun `writeContent should generate valid org format`() {
         // Given
         val nodes = listOf(

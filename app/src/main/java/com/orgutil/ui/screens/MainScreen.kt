@@ -3,6 +3,7 @@ package com.orgutil.ui.screens
 import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.EventNote
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
@@ -13,7 +14,7 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun MainScreen(
-    onFileSelected: (Uri) -> Unit,
+    onFileSelected: (Uri, Int?, Int?, String?) -> Unit,
     onNavigateToCapture: () -> Unit
 ) {
     // Default to files tab, and preserve the selected tab when navigating away/back
@@ -36,6 +37,9 @@ fun MainScreen(
                 1 -> FavoritesScreen(
                     onFileSelected = onFileSelected,
                     onNavigateBack = {} // No longer needed in tabbed view
+                )
+                2 -> AgendaScreen(
+                    onFileSelected = onFileSelected
                 )
             }
         }
@@ -76,6 +80,15 @@ private fun VerticalTabBar(
                 onClick = { onTabSelected(1) },
                 icon = Icons.Default.Star,
                 label = "Favorites"
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            VerticalTab(
+                selected = selectedTabIndex == 2,
+                onClick = { onTabSelected(2) },
+                icon = Icons.AutoMirrored.Filled.EventNote,
+                label = "Agenda"
             )
         }
     }

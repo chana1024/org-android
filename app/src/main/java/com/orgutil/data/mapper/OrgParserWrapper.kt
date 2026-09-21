@@ -22,9 +22,9 @@ class OrgParserWrapper @Inject constructor() {
             val builder = OrgParser.Builder()
             builder.setInput(content)
             
-            // Optional: Configure TODO keywords
-            builder.setTodoKeywords(arrayOf("TODO", "IN-PROGRESS", "WAITING"))
-            builder.setDoneKeywords(arrayOf("DONE", "CANCELLED"))
+            // Keep the viewer aligned with the GTD/PARA agenda keyword set.
+            builder.setTodoKeywords(arrayOf("TODO", "NEXT", "WAIT", "HOLD", "PROJ", "AREA", "MAYBE"))
+            builder.setDoneKeywords(arrayOf("DONE", "CANCELLED", "DROPPED"))
             
             val parser = builder.build()
             val parsedFile: OrgParsedFile = parser.parse()

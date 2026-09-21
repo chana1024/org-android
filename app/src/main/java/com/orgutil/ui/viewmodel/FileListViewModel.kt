@@ -39,6 +39,7 @@ class FileListViewModel @Inject constructor(
     private var searchDebounceJob: Job? = null
 
     init {
+        observeIndexing()
         bootstrap()
     }
 
@@ -130,6 +131,15 @@ class FileListViewModel @Inject constructor(
         }
         loadFiles(storedUri)
         triggerIndexing()
+    }
+
+    private fun observeIndexing() {
+        viewModelScope.launch {
+            fileIndexScheduler.observeIndexing()
+                .collect { status ->
+                    _uiState.value = _uiState.value.copy(indexStatus = status)
+                }
+        }
     }
 
     private fun loadFiles(uri: Uri?) {

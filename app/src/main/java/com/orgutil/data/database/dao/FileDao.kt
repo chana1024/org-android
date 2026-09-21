@@ -36,6 +36,9 @@ interface FileDao {
     @Query("DELETE FROM file_content_fts WHERE path IN (:paths)")
     suspend fun deleteFileContentByPaths(paths: List<String>)
 
+    @Query("SELECT * FROM file_content_fts WHERE path = :path LIMIT 1")
+    suspend fun getFileContentByPath(path: String): FileContentFtsEntity?
+
     @Query("SELECT * FROM file_metadata WHERE fileName LIKE '%' || :query || '%'")
     suspend fun searchFilesByName(query: String): List<FileMetadataEntity>
 

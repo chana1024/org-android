@@ -6,6 +6,7 @@ import com.orgutil.data.database.dao.FileDao
 import com.orgutil.data.datasource.FileDataSource
 import com.orgutil.domain.model.OrgFileInfo
 import com.orgutil.domain.repository.FavoriteRepository
+import com.orgutil.domain.search.SearchPreviewBuilder
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
@@ -23,7 +24,6 @@ class OrgFileQueryService @Inject constructor(
             val ftsQuery = prepareFtsQuery(query)
             return favoriteRepository.getFavoriteUrisFlow().combine(flowOf(Unit)) { favoriteUris, _ ->
                 try {
-                    val fileNameResults = fileDao.searchFilesByName(query)
                     val contentResults = fileDao.searchFilesByContent(ftsQuery)
                     val contentLikeResults = if (shouldUseContentLikeFallback(query)) {
                         fileDao.searchFilesByContentLike(query)
@@ -31,23 +31,31 @@ class OrgFileQueryService @Inject constructor(
                         emptyList()
                     }
                     val scopedPaths = scopedPathsOrNull(uri)
-                    val allResults = (fileNameResults + contentResults + contentLikeResults)
+                    val allResults = (contentResults + contentLikeResults)
                         .distinctBy { it.path }
                         .let { results ->
                             if (scopedPaths == null) results else results.filter { it.path in scopedPaths }
                         }
                         .sortedBy { it.fileName }
 
-                    allResults.map { metadata ->
+                    allResults.mapNotNull { metadata ->
                         val parsedUri = runCatching { Uri.parse(metadata.path) }
                             .getOrElse { Uri.fromFile(java.io.File(metadata.path)) }
+                        val preview = fileDao.getFileContentByPath(metadata.path)
+                            ?.content
+                            ?.let { content -> SearchPreviewBuilder.build(content, query) }
+                            ?: return@mapNotNull null
                         OrgFileInfo(
                             uri = parsedUri,
                             name = metadata.fileName,
                             lastModified = metadata.lastModified,
                             isFavorite = favoriteUris.contains(metadata.path),
                             size = metadata.size,
-                            isDirectory = false
+                            isDirectory = false,
+                            searchPreview = preview.text,
+                            searchPreviewMatchStart = preview.matchStart,
+                            searchPreviewMatchLength = preview.matchLength,
+                            searchMatchContentOffset = preview.contentOffset
                         )
                     }
                 } catch (e: Exception) {

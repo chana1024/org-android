@@ -1,6 +1,7 @@
 package com.orgutil.ui.viewmodel
 
 import android.net.Uri
+import com.orgutil.domain.indexing.FileIndexStatus
 import com.orgutil.domain.model.OrgFileInfo
 
 /**
@@ -22,7 +23,8 @@ data class FileListUiState(
     val currentDirectory: OrgFileInfo? = null,
     val pathHistory: List<Uri> = emptyList(),
     val searchQuery: String = "",
-    val queryMode: FileListQueryMode = FileListQueryMode.FULL_TEXT
+    val queryMode: FileListQueryMode = FileListQueryMode.FULL_TEXT,
+    val indexStatus: FileIndexStatus = FileIndexStatus.Idle
 ) {
     /** 是否处于子目录浏览 */
     val isBrowsingDirectory: Boolean

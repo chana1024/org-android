@@ -4,8 +4,6 @@ import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,7 +17,7 @@ import com.orgutil.ui.viewmodel.FavoritesViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FavoritesScreen(
-    onFileSelected: (Uri) -> Unit,
+    onFileSelected: (Uri, Int?, Int?, String?) -> Unit,
     onNavigateBack: () -> Unit,
     viewModel: FavoritesViewModel = hiltViewModel()
 ) {
@@ -83,7 +81,7 @@ fun FavoritesScreen(
                         items(uiState.favoriteFiles) { file ->
                             FileItem(
                                 file = file,
-                                onClick = { onFileSelected(file.uri) },
+                                onClick = { onFileSelected(file.uri, null, null, null) },
                                 onFavoriteToggle = { viewModel.removeFavorite(file) }
                             )
                         }

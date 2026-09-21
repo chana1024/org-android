@@ -216,6 +216,8 @@ class OrgFileRepositoryImplTest {
             deletedContentPaths = paths
         }
 
+        override suspend fun getFileContentByPath(path: String): FileContentFtsEntity? = null
+
         override suspend fun searchFilesByName(query: String): List<FileMetadataEntity> = emptyList()
 
         override suspend fun searchFilesByContent(ftsQuery: String): List<FileMetadataEntity> = emptyList()

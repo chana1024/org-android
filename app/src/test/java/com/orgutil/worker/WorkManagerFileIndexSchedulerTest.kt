@@ -4,7 +4,10 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequest
 import androidx.work.PeriodicWorkRequest
+import androidx.work.WorkInfo
 import com.orgutil.domain.indexing.FileIndexRequestResult
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -90,6 +93,8 @@ class WorkManagerFileIndexSchedulerTest {
             periodicPolicy = policy
             periodicRequest = request
         }
+
+        override fun observeUniqueWork(name: String): Flow<List<WorkInfo>> = flowOf(emptyList())
     }
 
     private class ThrowingWorkManagerGateway(
@@ -110,5 +115,7 @@ class WorkManagerFileIndexSchedulerTest {
         ) {
             throw throwable
         }
+
+        override fun observeUniqueWork(name: String): Flow<List<WorkInfo>> = flowOf(emptyList())
     }
 }

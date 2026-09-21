@@ -7,10 +7,14 @@ import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequest
 import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.orgutil.domain.indexing.FileIndexRequestResult
 import com.orgutil.domain.indexing.FileIndexScheduler
+import com.orgutil.domain.indexing.FileIndexStatus
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -53,6 +57,23 @@ class WorkManagerFileIndexScheduler internal constructor(
         }
     }
 
+    override fun observeIndexing(): Flow<FileIndexStatus> {
+        return workManagerGateway.observeUniqueWork(UNIQUE_WORK_NAME)
+            .map { workInfos -> workInfos.toFileIndexStatus() }
+    }
+
+    private fun List<WorkInfo>.toFileIndexStatus(): FileIndexStatus {
+        if (isEmpty()) return FileIndexStatus.Idle
+        return when {
+            any { it.state == WorkInfo.State.RUNNING } -> FileIndexStatus.Running
+            any { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED } -> FileIndexStatus.Enqueued
+            any { it.state == WorkInfo.State.FAILED } -> FileIndexStatus.Failed("Indexing failed")
+            any { it.state == WorkInfo.State.CANCELLED } -> FileIndexStatus.Failed("Indexing cancelled")
+            any { it.state == WorkInfo.State.SUCCEEDED } -> FileIndexStatus.Succeeded
+            else -> FileIndexStatus.Idle
+        }
+    }
+
     companion object {
         private const val UNIQUE_WORK_NAME = "file_indexing"
         private const val UNIQUE_PERIODIC_WORK_NAME = "file-indexer"
@@ -72,6 +93,8 @@ internal interface WorkManagerGateway {
         policy: ExistingPeriodicWorkPolicy,
         request: PeriodicWorkRequest
     )
+
+    fun observeUniqueWork(name: String): Flow<List<WorkInfo>>
 }
 
 private class AndroidxWorkManagerGateway(
@@ -93,5 +116,9 @@ private class AndroidxWorkManagerGateway(
         request: PeriodicWorkRequest
     ) {
         workManager.enqueueUniquePeriodicWork(name, policy, request)
+    }
+
+    override fun observeUniqueWork(name: String): Flow<List<WorkInfo>> {
+        return workManager.getWorkInfosForUniqueWorkFlow(name)
     }
 }
