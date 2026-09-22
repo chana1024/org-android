@@ -10,15 +10,19 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.MergeResult
+import org.eclipse.jgit.api.Status
 import org.eclipse.jgit.api.errors.GitAPIException
+import org.eclipse.jgit.dircache.DirCacheEntry
 import org.eclipse.jgit.lib.ConfigConstants
 import org.eclipse.jgit.lib.Constants
+import org.eclipse.jgit.lib.FileMode
 import org.eclipse.jgit.lib.ObjectId
 import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.merge.MergeStrategy
 import org.eclipse.jgit.revwalk.RevWalk
 import org.eclipse.jgit.transport.RemoteRefUpdate
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
+import org.eclipse.jgit.treewalk.TreeWalk
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -70,6 +74,7 @@ class JGitSyncDataSource @Inject constructor(
     private fun doSync(git: Git): GitSyncOutcome {
         val repo = git.repository
         ensureIdentity(repo)
+        ensureLegacyFavoritesExcluded(repo)
 
         val remoteName = resolveRemoteName(repo)
         val remoteUrl = repo.config.getString(
@@ -80,10 +85,15 @@ class JGitSyncDataSource @Inject constructor(
 
         var committed = false
         val status = git.status().call()
-        if (!status.isClean) {
+        // Auto-commit only when there are non-favorites changes: legacy
+        // favorites files must never be committed by sync (product decision C).
+        if (!status.isClean && hasNonFavoritesChanges(status)) {
             // git add -A: stage additions/modifications, then update stage (deletions)
             git.add().addFilepattern(".").call()
             git.add().addFilepattern(".").setUpdate(true).call()
+            // Belt-and-braces: drop/restore any favorites entries that still
+            // reached the index (patterns not covered by info/exclude).
+            scrubFavoritesFromIndex(git)
             git.commit()
                 .setMessage(PHONE_COMMIT_MESSAGE)
                 .setAuthor(GIT_USER_NAME, GIT_USER_EMAIL)
@@ -246,8 +256,107 @@ class JGitSyncDataSource @Inject constructor(
         return ours ?: theirs
     }
 
-    private fun ensureIdentity(repo: Repository) {
-        val config = repo.config
+    /**
+     * True when at least one dirty path is NOT a legacy favorites file, i.e.
+     * there is something worth auto-committing. When only favorites files are
+     * dirty, sync skips the auto-commit entirely instead of producing an
+     * endless series of empty "favorites churn" commits.
+     */
+    private fun hasNonFavoritesChanges(status: Status): Boolean =
+        (status.added + status.changed + status.removed + status.missing +
+            status.modified + status.untracked)
+            .any { !isLegacyFavoritesPath(it) }
+
+    /**
+     * Appends the legacy favorites pattern to `.git/info/exclude` (idempotent)
+     * so untracked favorites files are never staged by `git add -A`.
+     * info/exclude is repo-local metadata; user files are not touched.
+     */
+    private fun ensureLegacyFavoritesExcluded(repo: Repository) {
+        val excludeFile = File(repo.directory, "info/exclude")
+        val existing = if (excludeFile.isFile) excludeFile.readLines() else emptyList()
+        if (existing.any { it.trim() == LEGACY_FAVORITES_EXCLUDE_PATTERN }) return
+        excludeFile.parentFile?.mkdirs()
+        val content = buildString {
+            if (existing.isNotEmpty()) {
+                append(existing.joinToString("\n"))
+                append('\n')
+            }
+            append(LEGACY_FAVORITES_EXCLUDE_PATTERN).append('\n')
+        }
+        excludeFile.writeText(content)
+    }
+
+    /**
+     * Fixes up the index after `git add -A` for legacy favorites paths:
+     * - untracked-in-HEAD favorites files are dropped from the index (their
+     *   content stays on disk untouched);
+     * - tracked favorites files are restored to their HEAD entry in the
+     *   index, so the working-tree modification is not committed.
+     * Never touches the working tree and never removes a file from history.
+     */
+    private fun scrubFavoritesFromIndex(git: Git) {
+        val repo = git.repository
+        val dirCache = repo.lockDirCache()
+        var written = false
+        try {
+            val hasFavorites = (0 until dirCache.entryCount)
+                .any { isLegacyFavoritesPath(dirCache.getEntry(it).pathString) }
+            if (!hasFavorites) return
+
+            val builder = dirCache.builder()
+            for (i in 0 until dirCache.entryCount) {
+                val entry = dirCache.getEntry(i)
+                if (!isLegacyFavoritesPath(entry.pathString)) {
+                    builder.add(entry)
+                    continue
+                }
+                val headEntry = headIndexEntry(repo, entry.pathString)
+                if (headEntry != null) builder.add(headEntry)
+                // No HEAD entry -> untracked favorite: simply drop from index.
+            }
+            builder.commit()
+            written = true
+        } finally {
+            if (!written) dirCache.unlock()
+        }
+    }
+
+    /** The HEAD-tree entry for [path], or null when the path is not tracked in HEAD. */
+    private fun headIndexEntry(repo: Repository, path: String): DirCacheEntry? {
+        val headId = repo.resolve(Constants.HEAD) ?: return null
+        RevWalk(repo).use { walk ->
+            val commit = walk.parseCommit(headId)
+            val tree = walk.parseTree(commit.tree)
+            val treeWalk = TreeWalk.forPath(repo, path, tree) ?: return null
+            val objectId = treeWalk.getObjectId(0)
+            val fileMode = treeWalk.getFileMode(0)
+            if (fileMode == FileMode.MISSING) return null
+            return DirCacheEntry(path).apply {
+                this.fileMode = fileMode
+                setObjectId(objectId)
+                if (fileMode == FileMode.REGULAR_FILE || fileMode == FileMode.EXECUTABLE_FILE) {
+                    setLength(repo.open(objectId).size)
+                } else {
+                    setLength(0)
+                }
+                setLastModified(0)
+            }
+        }
+    }
+
+    /**
+     * Legacy favorites file detection: `.orgutil_favorites`, its variants
+     * (e.g. `.orgutil_favorites (1)`), and the looser "orgutil+favorites"
+     * names the old finder accepted.
+     */
+    private fun isLegacyFavoritesPath(path: String): Boolean {
+        val base = path.substringAfterLast('/')
+        return base.startsWith(LEGACY_FAVORITES_BASE_NAME) ||
+            (base.contains("orgutil", ignoreCase = true) && base.contains("favorites", ignoreCase = true))
+    }
+
+    private fun ensureIdentity(repo: Repository) {        val config = repo.config
         if (config.getString(ConfigConstants.CONFIG_USER_SECTION, null, ConfigConstants.CONFIG_KEY_NAME) == null ||
             config.getString(ConfigConstants.CONFIG_USER_SECTION, null, ConfigConstants.CONFIG_KEY_EMAIL) == null
         ) {
@@ -384,5 +493,7 @@ class JGitSyncDataSource @Inject constructor(
         const val GIT_USER_EMAIL = "org-util@localhost"
         const val PHONE_COMMIT_MESSAGE = "(phone)Auto commit: save local modifications"
         private const val DEFAULT_REMOTE_NAME = "origin"
+        const val LEGACY_FAVORITES_BASE_NAME = ".orgutil_favorites"
+        const val LEGACY_FAVORITES_EXCLUDE_PATTERN = ".orgutil_favorites*"
     }
 }

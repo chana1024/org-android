@@ -2,6 +2,7 @@ package com.orgutil.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.orgutil.domain.sync.GitSyncScheduler
 import com.orgutil.domain.usecase.AddToCaptureFileUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +19,8 @@ data class CaptureUiState(
 
 @HiltViewModel
 class CaptureViewModel @Inject constructor(
-    private val addToCaptureFileUseCase: AddToCaptureFileUseCase
+    private val addToCaptureFileUseCase: AddToCaptureFileUseCase,
+    private val gitSyncScheduler: GitSyncScheduler
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CaptureUiState())
@@ -34,6 +36,10 @@ class CaptureViewModel @Inject constructor(
 
             addToCaptureFileUseCase(content)
                 .onSuccess {
+                    // Quick capture changes the same repository as the file editor.
+                    // Reuse the configured WorkManager sync path so repeated captures
+                    // are coalesced and offline work waits for connectivity.
+                    gitSyncScheduler.requestSyncIfConfigured()
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         successMessage = "内容已成功添加到 gtd/inbox.org！"

@@ -13,6 +13,12 @@ interface OrgFileRepository {
     suspend fun writeOrgFile(document: OrgDocument): Result<Unit>
     suspend fun createOrgFile(name: String, content: String): Result<Uri>
     suspend fun deleteOrgFile(uri: Uri): Result<Unit>
+
+    /**
+     * Renames the file in place. Re-indexes both the stale old URI and the
+     * new one, so search/favorites lookups never dangle. Returns the new URI.
+     */
+    suspend fun renameOrgFile(uri: Uri, newName: String): Result<Uri>
     suspend fun hasDocumentAccess(): Boolean
     suspend fun requestDocumentAccess(): Boolean
     suspend fun appendToCaptureFile(content: String): Result<Unit>

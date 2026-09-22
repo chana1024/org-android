@@ -33,10 +33,10 @@
     <string name="search_label_global_list">Filter file list</string>
     <string name="search_placeholder_directory">Filter files in this folder</string>
     <string name="search_placeholder_global_search">Search indexed org content</string>
-    <string name="search_placeholder_global_list">Filter files by name</string>
+    <string name="search_placeholder_global_list">Filter files by name or path</string>
     <string name="search_mode_hint_directory">Folder filtering only</string>
     <string name="search_mode_hint_global_search">Showing full-text search results</string>
-    <string name="search_mode_hint_global_list">Showing file list filter results</string>
+    <string name="search_mode_hint_global_list">Matching file names and paths only</string>
     <string name="search_mode_file_list">File list</string>
     <string name="search_mode_full_text">Full-text</string>
     <string name="no_files_found_in_folder">No files found in this folder for %1$s</string>

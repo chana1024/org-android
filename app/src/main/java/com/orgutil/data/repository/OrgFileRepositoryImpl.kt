@@ -8,6 +8,7 @@ import com.orgutil.data.mapper.OrgParserWrapper
 import com.orgutil.domain.model.OrgDocument
 import com.orgutil.domain.model.OrgFileInfo
 import com.orgutil.domain.repository.OrgFileRepository
+import com.orgutil.domain.search.CjkTextEncoder
 import kotlinx.coroutines.flow.Flow
 import java.io.File
 import java.io.IOException
@@ -94,6 +95,19 @@ class OrgFileRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun renameOrgFile(uri: Uri, newName: String): Result<Uri> {
+        return try {
+            val newUri = fileDataSource.renameFile(uri, newName)
+            // The old URI is stale after a rename (SAF URIs embed the name):
+            // drop its index rows and index the document under the new URI.
+            deleteIndexedFile(uri)
+            syncIndexedFile(newUri, fallbackName = newName)
+            Result.success(newUri)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     override suspend fun hasDocumentAccess(): Boolean {
         return fileDataSource.hasDocumentAccess()
     }
@@ -152,15 +166,22 @@ class OrgFileRepositoryImpl @Inject constructor(
                 size = fileContent.length.toLong(),
                 isDirectory = false
             )
-            fileDao.insertFileMetadata(indexedInfo.toFileMetadataEntity())
-            fileDao.insertFileContent(indexedInfo.toFileContentFtsEntity(fileContent))
+            fileDao.replaceIndexedFile(
+                metadata = indexedInfo.toFileMetadataEntity(),
+                ftsContent = com.orgutil.data.database.entity.FileContentFtsEntity(
+                    path = indexedInfo.uri.toString(),
+                    content = CjkTextEncoder.encodeForIndex(fileContent)
+                ),
+                plainContent = com.orgutil.data.database.entity.FileContentEntity(
+                    path = indexedInfo.uri.toString(),
+                    content = fileContent
+                )
+            )
         }
     }
 
     private suspend fun deleteIndexedFile(uri: Uri) {
-        val paths = listOf(uri.toString())
-        fileDao.deleteFileMetadataByPaths(paths)
-        fileDao.deleteFileContentByPaths(paths)
+        fileDao.deleteIndexedFiles(listOf(uri.toString()))
     }
 
     private fun OrgFileInfo.toFileMetadataEntity() = com.orgutil.data.database.entity.FileMetadataEntity(
@@ -168,11 +189,6 @@ class OrgFileRepositoryImpl @Inject constructor(
         fileName = this.name,
         lastModified = this.lastModified,
         size = this.size
-    )
-
-    private fun OrgFileInfo.toFileContentFtsEntity(content: String) = com.orgutil.data.database.entity.FileContentFtsEntity(
-        path = this.uri.toString(),
-        content = content
     )
 
     private companion object {

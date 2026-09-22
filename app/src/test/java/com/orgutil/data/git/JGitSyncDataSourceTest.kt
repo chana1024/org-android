@@ -191,4 +191,82 @@ class JGitSyncDataSourceTest {
         assertTrue(content.contains("local edit"))
         assertTrue(content.contains("remote edit"))
     }
+
+    // --- Legacy favorites exclusion (product decision C) -------------------------
+
+    @Test
+    fun `untracked legacy favorites file is not committed and is excluded locally`() = runTest {
+        stubRepoRoot()
+        File(workDir, ".orgutil_favorites").writeText("content://tree/notes/a.org\n")
+
+        val result = dataSource.sync()
+
+        assertTrue("sync failed: ${result.exceptionOrNull()?.message ?: result}", result.isSuccess)
+        val outcome = result.getOrThrow()
+        // Only the favorites file was dirty -> no auto-commit at all.
+        assertFalse(outcome.committed)
+        assertFalse(outcome.pushed)
+        // The file still exists on disk (untouched). It is now covered by
+        // info/exclude, so the working tree reads as clean (ignored, not
+        // untracked, never staged).
+        assertTrue(File(workDir, ".orgutil_favorites").isFile)
+        Git.open(workDir).use { git ->
+            val status = git.status().call()
+            assertTrue(status.isClean)
+            assertFalse(status.untracked.contains(".orgutil_favorites"))
+            assertFalse(status.added.contains(".orgutil_favorites"))
+        }
+        // It was recorded in .git/info/exclude so future `add -A` skips it.
+        val exclude = File(workDir, ".git/info/exclude").readText()
+        assertTrue(exclude.contains(JGitSyncDataSource.LEGACY_FAVORITES_EXCLUDE_PATTERN))
+    }
+
+    @Test
+    fun `untracked favorites file is not staged when other changes are committed`() = runTest {
+        stubRepoRoot()
+        File(workDir, "notes.org").writeText("hello\nchanged\n")
+        File(workDir, ".orgutil_favorites").writeText("content://tree/notes/a.org\n")
+
+        val result = dataSource.sync()
+
+        assertTrue("sync failed: ${result.exceptionOrNull()?.message ?: result}", result.isSuccess)
+        assertTrue(result.getOrThrow().committed)
+        Git.cloneRepository().setURI(serverDir.toURI().toString())
+            .setDirectory(tmp.newFolder("clone_fav")).call().use { clone ->
+                assertEquals("hello\nchanged\n", File(clone.repository.workTree, "notes.org").readText())
+                assertFalse(File(clone.repository.workTree, ".orgutil_favorites").exists())
+            }
+        // The user's favorites file is untouched in the working tree.
+        assertEquals("content://tree/notes/a.org\n", File(workDir, ".orgutil_favorites").readText())
+    }
+
+    @Test
+    fun `tracked legacy favorites modification is not committed while other changes are`() = runTest {
+        stubRepoRoot()
+        // Legacy state: the favorites file is already tracked in HEAD.
+        Git.open(workDir).use { git ->
+            commitFile(git, ".orgutil_favorites", "content://tree/notes/old.org\n")
+            git.push().setRemote("origin").call()
+        }
+        // Now both the favorites file and a note change locally.
+        File(workDir, ".orgutil_favorites").writeText("content://tree/notes/new.org\n")
+        File(workDir, "notes.org").writeText("hello\nchanged\n")
+
+        val result = dataSource.sync()
+
+        assertTrue("sync failed: ${result.exceptionOrNull()?.message ?: result}", result.isSuccess)
+        assertTrue(result.getOrThrow().committed)
+        Git.cloneRepository().setURI(serverDir.toURI().toString())
+            .setDirectory(tmp.newFolder("clone_tracked")).call().use { clone ->
+                assertEquals("hello\nchanged\n", File(clone.repository.workTree, "notes.org").readText())
+                // The favorites modification was NOT propagated; HEAD still
+                // holds the old version. No history rewrite involved.
+                assertEquals(
+                    "content://tree/notes/old.org\n",
+                    File(clone.repository.workTree, ".orgutil_favorites").readText()
+                )
+            }
+        // The working-tree favorites file keeps the user's local content.
+        assertEquals("content://tree/notes/new.org\n", File(workDir, ".orgutil_favorites").readText())
+    }
 }

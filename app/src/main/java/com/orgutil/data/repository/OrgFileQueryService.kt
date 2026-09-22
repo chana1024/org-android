@@ -6,6 +6,7 @@ import com.orgutil.data.database.dao.FileDao
 import com.orgutil.data.datasource.FileDataSource
 import com.orgutil.domain.model.OrgFileInfo
 import com.orgutil.domain.repository.FavoriteRepository
+import com.orgutil.domain.search.FtsQueryBuilder
 import com.orgutil.domain.search.SearchPreviewBuilder
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -21,36 +22,32 @@ class OrgFileQueryService @Inject constructor(
 ) {
     fun observeOrgFiles(uri: Uri?, query: String?, useDatabase: Boolean): Flow<List<OrgFileInfo>> {
         if (!query.isNullOrBlank() && useDatabase) {
-            val ftsQuery = prepareFtsQuery(query)
-            return favoriteRepository.getFavoriteUrisFlow().combine(flowOf(Unit)) { favoriteUris, _ ->
-                try {
-                    val contentResults = fileDao.searchFilesByContent(ftsQuery)
-                    val contentLikeResults = if (shouldUseContentLikeFallback(query)) {
-                        fileDao.searchFilesByContentLike(query)
-                    } else {
-                        emptyList()
-                    }
-                    val scopedPaths = scopedPathsOrNull(uri)
-                    val allResults = (contentResults + contentLikeResults)
-                        .distinctBy { it.path }
-                        .let { results ->
-                            if (scopedPaths == null) results else results.filter { it.path in scopedPaths }
-                        }
-                        .sortedBy { it.fileName }
+            // Full-text search: Room/FTS only, no SAF access on the keystroke
+            // path. FtsQueryBuilder returns null when no term can ever match
+            // (whitespace/punctuation only) - skip the query entirely.
+            val ftsQuery = FtsQueryBuilder.buildMatchQuery(query)
+                ?: return flowOf(emptyList())
+            val scopedUri = scopedUriOrNull(uri)
 
-                    allResults.mapNotNull { metadata ->
-                        val parsedUri = runCatching { Uri.parse(metadata.path) }
-                            .getOrElse { Uri.fromFile(java.io.File(metadata.path)) }
-                        val preview = fileDao.getFileContentByPath(metadata.path)
-                            ?.content
-                            ?.let { content -> SearchPreviewBuilder.build(content, query) }
+            return favoriteRepository.getFavoriteUrisFlow().combine(flowOf(Unit)) { favoriteUris, _ ->
+                // Metadata + content arrive joined in one query; previews are
+                // built from the joined content (no per-hit lookups). Errors
+                // propagate to the caller (the ViewModel surfaces them); no
+                // catch-all masking.
+                val results = fileDao.searchFilesWithContent(ftsQuery)
+                results.asSequence()
+                    .filter { scopedUri == null || isUnderTree(resultPath = it.path, treeUri = scopedUri) }
+                    .mapNotNull { row ->
+                        val parsedUri = runCatching { Uri.parse(row.path) }
+                            .getOrElse { Uri.fromFile(java.io.File(row.path)) }
+                        val preview = SearchPreviewBuilder.build(row.content, query)
                             ?: return@mapNotNull null
                         OrgFileInfo(
                             uri = parsedUri,
-                            name = metadata.fileName,
-                            lastModified = metadata.lastModified,
-                            isFavorite = favoriteUris.contains(metadata.path),
-                            size = metadata.size,
+                            name = row.fileName,
+                            lastModified = row.lastModified,
+                            isFavorite = favoriteUris.contains(row.path),
+                            size = row.size,
                             isDirectory = false,
                             searchPreview = preview.text,
                             searchPreviewMatchStart = preview.matchStart,
@@ -58,13 +55,12 @@ class OrgFileQueryService @Inject constructor(
                             searchMatchContentOffset = preview.contentOffset
                         )
                     }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error searching files", e)
-                    emptyList()
-                }
+                    .toList()
             }
         }
 
+        // FILE_LIST mode: the data source matches names/relative paths only
+        // and never reads file bodies (see OrgFileScanner).
         if (uri != null) {
             return favoriteRepository.getFavoriteUrisFlow().combine(flowOf(Unit)) { favoriteUris, _ ->
                 try {
@@ -88,39 +84,26 @@ class OrgFileQueryService @Inject constructor(
         }
     }
 
-    private suspend fun scopedPathsOrNull(uri: Uri?): Set<String>? {
+    /** Null when the search is not scoped to a subtree (root or stored tree itself). */
+    private fun scopedUriOrNull(uri: Uri?): Uri? {
         val currentUri = uri ?: return null
         val storedTreeUri = fileDataSource.getStoredTreeUri()?.toString()
-        if (currentUri.toString() == storedTreeUri) return null
-        return fileDataSource.getAllOrgFilesUnder(currentUri)
-            .map { it.uri.toString() }
-            .toSet()
+        return if (currentUri.toString() == storedTreeUri) null else currentUri
     }
 
-    private fun prepareFtsQuery(query: String): String {
-        val trimmedQuery = query.trim()
-        if (trimmedQuery.isEmpty()) return trimmedQuery
-
-        val containsChinese = trimmedQuery.any { it.toString().matches("[\\u4e00-\\u9fa5]".toRegex()) }
-        return if (containsChinese) {
-            val parts = trimmedQuery.split("\\s+".toRegex()).filter { it.isNotBlank() }
-            parts.joinToString(" AND ") { part ->
-                val escapedPart = part.replace("\"", "\"\"")
-                "$escapedPart*"
-            }
-        } else {
-            val words = trimmedQuery.split("\\s+".toRegex()).filter { it.isNotBlank() }
-            if (words.size == 1) {
-                val escapedWord = words[0].replace("\"", "\"\"")
-                "$escapedWord*"
-            } else {
-                words.map { word -> "${word.replace("\"", "\"\"")}*" }.joinToString(" AND ")
-            }
-        }
-    }
-
-    private fun shouldUseContentLikeFallback(query: String): Boolean {
-        return query.any { it.code > 127 || (!it.isLetterOrDigit() && !it.isWhitespace()) }
+    /**
+     * Prefix check on URI strings: document URIs enumerated from a SAF tree
+     * always embed the tree URI as a literal prefix, followed by "/", "?",
+     * or an encoded path separator ("%2F"). The separator boundary is what
+     * keeps "notes" from matching "notes2".
+     */
+    private fun isUnderTree(resultPath: String, treeUri: Uri): Boolean {
+        val prefix = treeUri.toString()
+        if (!resultPath.startsWith(prefix, ignoreCase = true)) return false
+        val remainder = resultPath.removePrefix(prefix)
+        return remainder.startsWith("/") ||
+            remainder.startsWith("?") ||
+            remainder.startsWith("%2F", ignoreCase = true)
     }
 
     private companion object {

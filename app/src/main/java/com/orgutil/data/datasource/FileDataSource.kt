@@ -12,6 +12,13 @@ interface FileDataSource {
     suspend fun writeFile(uri: Uri, content: String)
     suspend fun createFile(name: String, content: String): Uri
     suspend fun deleteFile(uri: Uri)
+
+    /**
+     * Renames the document in place (same directory). Returns the new URI -
+     * SAF document URIs embed the display name, so the old URI is stale
+     * after a rename. Irreversible in the sense that no trash can exists.
+     */
+    suspend fun renameFile(uri: Uri, newName: String): Uri
     suspend fun hasDocumentAccess(): Boolean
     suspend fun requestDocumentAccess(): Boolean
     suspend fun appendToCaptureFile(content: String)

@@ -3,20 +3,22 @@ package com.orgutil.data.datasource
 import android.content.Context
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
+import com.orgutil.di.IoDispatcher
 import com.orgutil.domain.model.OrgFileInfo
+import com.orgutil.domain.search.FileListQueryMatcher
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
-import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class OrgFileScanner @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val documentTreeStore: DocumentTreeStore
+    private val documentTreeStore: DocumentTreeStore,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-    suspend fun getOrgFiles(uri: Uri?, query: String?): List<OrgFileInfo> = withContext(Dispatchers.IO) {
+    suspend fun getOrgFiles(uri: Uri?, query: String?): List<OrgFileInfo> = withContext(ioDispatcher) {
         val treeUri = uri ?: documentTreeStore.getStoredTreeUri() ?: return@withContext emptyList()
         val documentFile = DocumentFile.fromTreeUri(context, treeUri)
         if (documentFile?.exists() != true || !documentFile.isDirectory) return@withContext emptyList()
@@ -35,6 +37,9 @@ class OrgFileScanner @Inject constructor(
 
         val results = mutableListOf<OrgFileInfo>()
 
+        // FILE_LIST mode matches file names / relative paths only and never
+        // reads file bodies (product decision A): a full-tree search must not
+        // pay one SAF stream read per .org file per keystroke.
         suspend fun search(file: DocumentFile, path: String) {
             if (file.isDirectory) {
                 for (child in file.listFiles()) {
@@ -43,18 +48,8 @@ class OrgFileScanner @Inject constructor(
                     }
                 }
             } else if (file.isFile && file.name?.endsWith(".org") == true) {
-                val fileNameMatch = isQueryMatch(file.name.orEmpty(), query)
-                if (fileNameMatch) {
+                if (FileListQueryMatcher.matches(nameOrPath = path, query = query)) {
                     results.add(fileInfo(file, path))
-                } else {
-                    try {
-                        val content = readFile(file.uri)
-                        if (isQueryMatch(content, query)) {
-                            results.add(fileInfo(file, path))
-                        }
-                    } catch (_: IOException) {
-                        // Ignore unreadable files during search.
-                    }
                 }
             }
         }
@@ -67,7 +62,7 @@ class OrgFileScanner @Inject constructor(
         results
     }
 
-    suspend fun getAllOrgFiles(): List<OrgFileInfo> = withContext(Dispatchers.IO) {
+    suspend fun getAllOrgFiles(): List<OrgFileInfo> = withContext(ioDispatcher) {
         val treeUri = documentTreeStore.getStoredTreeUri() ?: return@withContext emptyList()
         val documentFile = DocumentFile.fromTreeUri(context, treeUri)
         if (documentFile?.exists() != true || !documentFile.isDirectory) return@withContext emptyList()
@@ -95,7 +90,7 @@ class OrgFileScanner @Inject constructor(
         allFiles
     }
 
-    suspend fun getAllOrgFilesUnder(uri: Uri): List<OrgFileInfo> = withContext(Dispatchers.IO) {
+    suspend fun getAllOrgFilesUnder(uri: Uri): List<OrgFileInfo> = withContext(ioDispatcher) {
         val documentFile = DocumentFile.fromTreeUri(context, uri)
             ?: DocumentFile.fromSingleUri(context, uri)
             ?: return@withContext emptyList()
@@ -134,7 +129,7 @@ class OrgFileScanner @Inject constructor(
         scopedFiles
     }
 
-    suspend fun getFileInfo(uri: Uri): OrgFileInfo? = withContext(Dispatchers.IO) {
+    suspend fun getFileInfo(uri: Uri): OrgFileInfo? = withContext(ioDispatcher) {
         val documentFile = DocumentFile.fromSingleUri(context, uri) ?: return@withContext null
         if (!documentFile.exists() || !documentFile.isFile) return@withContext null
         fileInfo(documentFile, documentFile.name ?: uri.lastPathSegment ?: "unknown")
@@ -155,31 +150,4 @@ class OrgFileScanner @Inject constructor(
         size = file.length(),
         isDirectory = false
     )
-
-    private fun isQueryMatch(text: String, query: String): Boolean {
-        val normalizedQuery = query.trim()
-        if (normalizedQuery.isEmpty()) return true
-
-        val containsChinese = normalizedQuery.any { it.toString().matches("[\\u4e00-\\u9fa5]".toRegex()) }
-        return if (containsChinese) {
-            val queryWords = normalizedQuery.split("\\s+".toRegex()).filter { it.isNotBlank() }
-            queryWords.all { word ->
-                if (word.any { it.toString().matches("[\\u4e00-\\u9fa5]".toRegex()) }) {
-                    text.contains(word)
-                } else {
-                    text.lowercase().contains(word.lowercase())
-                }
-            }
-        } else {
-            val normalizedText = text.lowercase()
-            val queryWords = normalizedQuery.lowercase().split("\\s+".toRegex()).filter { it.isNotBlank() }
-            queryWords.all { word -> normalizedText.contains(word) }
-        }
-    }
-
-    private suspend fun readFile(uri: Uri): String = withContext(Dispatchers.IO) {
-        context.contentResolver.openInputStream(uri)?.use { inputStream ->
-            inputStream.bufferedReader(Charsets.UTF_8).use { reader -> reader.readText() }
-        } ?: throw IOException("Could not open file for reading")
-    }
 }

@@ -4,9 +4,10 @@ import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.documentfile.provider.DocumentFile
+import com.orgutil.di.IoDispatcher
 import com.orgutil.domain.model.OrgFileInfo
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.IOException
@@ -20,14 +21,15 @@ class FileDataSourceImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val documentTreeStore: DocumentTreeStore,
     private val orgInboxStore: OrgInboxStore,
-    private val orgFileScanner: OrgFileScanner
+    private val orgFileScanner: OrgFileScanner,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : FileDataSource {
 
     override suspend fun getOrgFiles(uri: Uri?, query: String?): List<OrgFileInfo> {
         return orgFileScanner.getOrgFiles(uri, query)
     }
 
-    override suspend fun readFile(uri: Uri): String = withContext(Dispatchers.IO) {
+    override suspend fun readFile(uri: Uri): String = withContext(ioDispatcher) {
         try {
             context.contentResolver.openInputStream(uri)?.use { inputStream ->
                 BufferedReader(InputStreamReader(inputStream)).use { reader ->
@@ -39,7 +41,7 @@ class FileDataSourceImpl @Inject constructor(
         }
     }
 
-    override suspend fun writeFile(uri: Uri, content: String): Unit = withContext(Dispatchers.IO) {
+    override suspend fun writeFile(uri: Uri, content: String): Unit = withContext(ioDispatcher) {
         try {
             val outputStream = context.contentResolver.openOutputStream(uri, "wt")
             if (outputStream == null) {
@@ -58,7 +60,7 @@ class FileDataSourceImpl @Inject constructor(
         }
     }
 
-    override suspend fun createFile(name: String, content: String): Uri = withContext(Dispatchers.IO) {
+    override suspend fun createFile(name: String, content: String): Uri = withContext(ioDispatcher) {
         val treeUri = documentTreeStore.getStoredTreeUri() ?: throw IOException("No document tree access")
         try {
             val documentFile = DocumentFile.fromTreeUri(context, treeUri)
@@ -77,7 +79,7 @@ class FileDataSourceImpl @Inject constructor(
         }
     }
 
-    override suspend fun deleteFile(uri: Uri) = withContext(Dispatchers.IO) {
+    override suspend fun deleteFile(uri: Uri) = withContext(ioDispatcher) {
         try {
             val documentFile = DocumentFile.fromSingleUri(context, uri)
             if (documentFile?.exists() == true) {
@@ -85,6 +87,25 @@ class FileDataSourceImpl @Inject constructor(
             }
         } catch (e: Exception) {
             throw IOException("Failed to delete file: ${e.message}", e)
+        }
+    }
+
+    override suspend fun renameFile(uri: Uri, newName: String): Uri = withContext(ioDispatcher) {
+        // Must use DocumentsContract.renameDocument directly: with the
+        // documentfile 1.0.1 we ship, DocumentFile.fromSingleUri(...).renameTo
+        // throws UnsupportedOperationException, and even the tree variant's
+        // boolean API hides the returned Uri. SAF document URIs embed the
+        // display name, so after the rename the OLD uri is stale and the
+        // returned new Uri MUST be used. A null result means the provider
+        // renamed in place, where the old uri remains valid.
+        try {
+            DocumentsContract.renameDocument(context.contentResolver, uri, newName) ?: uri
+        } catch (e: SecurityException) {
+            throw IOException("No permission to rename: ${e.message}", e)
+        } catch (e: UnsupportedOperationException) {
+            throw IOException("Provider does not support rename", e)
+        } catch (e: Exception) {
+            throw IOException("Failed to rename file: ${e.message}", e)
         }
     }
 

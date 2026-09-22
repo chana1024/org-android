@@ -18,8 +18,11 @@ import com.orgutil.worker.WorkManagerFileIndexScheduler
 import com.orgutil.worker.WorkManagerGitSyncScheduler
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import javax.inject.Singleton
 
 @Module
@@ -73,4 +76,10 @@ abstract class DataModule {
     abstract fun bindGitSyncScheduler(
         workManagerGitSyncScheduler: WorkManagerGitSyncScheduler
     ): GitSyncScheduler
+
+    companion object {
+        @Provides
+        @IoDispatcher
+        fun provideIoDispatcher(): CoroutineDispatcher = Dispatchers.IO
+    }
 }

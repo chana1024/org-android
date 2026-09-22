@@ -2,6 +2,7 @@ package com.orgutil.data.repository
 
 import android.net.Uri
 import com.orgutil.data.database.dao.FileDao
+import com.orgutil.data.database.entity.FileContentEntity
 import com.orgutil.data.database.entity.FileContentFtsEntity
 import com.orgutil.data.database.entity.FileMetadataEntity
 import com.orgutil.data.datasource.FileDataSource
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -105,12 +107,38 @@ class OrgFileRepositoryImplTest {
         verify(fileDataSource).getFileInfo(mockUri)
 
         val metadata = requireNotNull(fileDao.lastInsertedMetadata)
-        val indexedContent = requireNotNull(fileDao.lastInsertedContent)
+        val indexedContent = requireNotNull(fileDao.lastInsertedFtsContent)
         assertEquals(mockUri.toString(), metadata.path)
         assertEquals(document.fileName, metadata.fileName)
         assertEquals(document.content.length.toLong(), metadata.size)
         assertEquals(mockUri.toString(), indexedContent.path)
         assertEquals(document.content, indexedContent.content)
+    }
+
+    @Test
+    fun `writeOrgFile encodes CJK content for FTS while storing raw content`() = runTest {
+        val rawContent = "* 中文测试混合\nsome latin"
+        val document = OrgDocument(
+            uri = mockUri,
+            fileName = "test.org",
+            content = rawContent,
+            lastModified = 42L,
+            nodes = emptyList()
+        )
+        `when`(fileDataSource.readFile(mockUri)).thenReturn(rawContent)
+        `when`(fileDataSource.getFileInfo(mockUri)).thenReturn(null)
+
+        val result = repository.writeOrgFile(document)
+
+        assertTrue(result.isSuccess)
+        val fts = requireNotNull(fileDao.lastInsertedFtsContent)
+        val plain = requireNotNull(fileDao.lastInsertedPlainContent)
+        // FTS row holds the bigram-encoded form so "测试" can match by bigram.
+        assertTrue(fts.content.contains("测试"))
+        assertTrue(fts.content.contains("文测"))
+        assertNotEquals(rawContent, fts.content)
+        // Plain content table keeps the original body (previews, point reads).
+        assertEquals(rawContent, plain.content)
     }
 
     @Test
@@ -127,14 +155,14 @@ class OrgFileRepositoryImplTest {
         verify(fileDataSource).createFile("inbox", fileContent)
 
         val metadata = requireNotNull(fileDao.lastInsertedMetadata)
-        val indexedContent = requireNotNull(fileDao.lastInsertedContent)
+        val indexedContent = requireNotNull(fileDao.lastInsertedFtsContent)
         assertEquals("inbox.org", metadata.fileName)
         assertEquals(fileContent.length.toLong(), metadata.size)
         assertEquals(fileContent, indexedContent.content)
     }
 
     @Test
-    fun `deleteOrgFile removes source and indexed entries`() = runTest {
+    fun `deleteOrgFile removes source and all indexed entries`() = runTest {
         val result = repository.deleteOrgFile(mockUri)
 
         assertTrue(result.isSuccess)
@@ -157,7 +185,7 @@ class OrgFileRepositoryImplTest {
         verify(fileDataSource).getCaptureFileUri()
 
         val metadata = requireNotNull(fileDao.lastInsertedMetadata)
-        val indexedContent = requireNotNull(fileDao.lastInsertedContent)
+        val indexedContent = requireNotNull(fileDao.lastInsertedFtsContent)
         assertEquals(captureUri.toString(), metadata.path)
         assertEquals("inbox.org", metadata.fileName)
         assertEquals(appendedContent.length.toLong(), metadata.size)
@@ -177,14 +205,20 @@ class OrgFileRepositoryImplTest {
         assertEquals("Capture file URI unavailable after append", exception?.message)
         verify(fileDataSource).appendToCaptureFile("* TODO Missing URI")
         assertEquals(null, fileDao.lastInsertedMetadata)
-        assertEquals(null, fileDao.lastInsertedContent)
+        assertEquals(null, fileDao.lastInsertedFtsContent)
         assertTrue(fileDao.deletedMetadataPaths.isEmpty())
         assertTrue(fileDao.deletedContentPaths.isEmpty())
     }
 
+    /**
+     * Records writes per column family. The @Transaction default methods of
+     * [FileDao] run against this fake unchanged, so the delete-then-insert
+     * ordering is exercised exactly as in production.
+     */
     private class RecordingFileDao : FileDao {
         var lastInsertedMetadata: FileMetadataEntity? = null
-        var lastInsertedContent: FileContentFtsEntity? = null
+        var lastInsertedFtsContent: FileContentFtsEntity? = null
+        var lastInsertedPlainContent: FileContentEntity? = null
         var deletedMetadataPaths: List<String> = emptyList()
         var deletedContentPaths: List<String> = emptyList()
 
@@ -200,29 +234,44 @@ class OrgFileRepositoryImplTest {
 
         override suspend fun getFileMetadataByPaths(paths: List<String>): List<FileMetadataEntity> = emptyList()
 
+        override suspend fun getFileMetadataByPath(path: String): FileMetadataEntity? = null
+
         override suspend fun deleteFileMetadataByPaths(paths: List<String>) {
             deletedMetadataPaths = paths
         }
 
-        override suspend fun insertFileContent(content: FileContentFtsEntity) {
-            lastInsertedContent = content
+        override suspend fun insertFileContentFts(content: FileContentFtsEntity) {
+            lastInsertedFtsContent = content
         }
 
-        override suspend fun insertAllFileContent(content: List<FileContentFtsEntity>) {
-            lastInsertedContent = content.lastOrNull()
+        override suspend fun insertAllFileContentFts(content: List<FileContentFtsEntity>) {
+            lastInsertedFtsContent = content.lastOrNull()
+        }
+
+        override suspend fun insertFileContentRow(content: FileContentEntity) {
+            lastInsertedPlainContent = content
+        }
+
+        override suspend fun insertAllFileContentRows(content: List<FileContentEntity>) {
+            lastInsertedPlainContent = content.lastOrNull()
+        }
+
+        override suspend fun deleteFileContentByPath(path: String) {
+            deletedContentPaths = listOf(path)
         }
 
         override suspend fun deleteFileContentByPaths(paths: List<String>) {
             deletedContentPaths = paths
         }
 
-        override suspend fun getFileContentByPath(path: String): FileContentFtsEntity? = null
+        override suspend fun deletePlainContentByPaths(paths: List<String>) = Unit
 
-        override suspend fun searchFilesByName(query: String): List<FileMetadataEntity> = emptyList()
+        override suspend fun getFileContentByPath(path: String): FileContentEntity? = null
 
-        override suspend fun searchFilesByContent(ftsQuery: String): List<FileMetadataEntity> = emptyList()
+        override suspend fun searchFilesWithContent(ftsQuery: String): List<com.orgutil.data.database.entity.FileSearchResult> =
+            emptyList()
 
-        override suspend fun searchFilesByContentLike(query: String): List<FileMetadataEntity> = emptyList()
+        override suspend fun getMetadataPathsWithoutFtsContent(): List<String> = emptyList()
 
         override suspend fun getAllFilePaths(): List<String> = emptyList()
     }

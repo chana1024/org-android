@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.EventNote
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Star
@@ -43,6 +44,7 @@ fun MainScreen(
                     onFileSelected = onFileSelected
                 )
                 3 -> SyncScreen()
+                4 -> ChatScreen()
             }
         }
     }
@@ -101,6 +103,16 @@ private fun VerticalTabBar(
                 onClick = { onTabSelected(3) },
                 icon = Icons.Default.CloudSync,
                 label = "Sync"
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Agent chat tab
+            VerticalTab(
+                selected = selectedTabIndex == 4,
+                onClick = { onTabSelected(4) },
+                icon = Icons.AutoMirrored.Filled.Chat,
+                label = "Chat"
             )
         }
     }

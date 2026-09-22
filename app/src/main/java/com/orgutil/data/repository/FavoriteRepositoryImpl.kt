@@ -3,188 +3,159 @@ package com.orgutil.data.repository
 import android.content.Context
 import android.content.SharedPreferences
 import android.net.Uri
+import androidx.core.content.edit
 import androidx.documentfile.provider.DocumentFile
+import com.orgutil.data.datasource.DocumentTreeStore
+import com.orgutil.di.IoDispatcher
 import com.orgutil.domain.repository.FavoriteRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.io.OutputStreamWriter
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Favorites are local app state (product decision C): they live in shared
+ * preferences and are never written into the user's notes repository.
+ *
+ * The pre-existing behavior stored favorites in a `.orgutil_favorites` file
+ * inside the document tree (and thereby in the user's git repo). Legacy
+ * files are migrated once per tree: their entries are union-merged into the
+ * stored set. The legacy file itself is never modified or deleted, and no
+ * favorites file is ever created again.
+ */
 @Singleton
 class FavoriteRepositoryImpl @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val documentTreeStore: DocumentTreeStore,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : FavoriteRepository {
 
-    private val prefs: SharedPreferences = context.getSharedPreferences("org_util_prefs", Context.MODE_PRIVATE)
-    private val DOCUMENT_TREE_URI_KEY = "document_tree_uri"
-    private val FAVORITES_FILE_URI_KEY = "favorites_file_uri"
-    private val FAVORITES_VERSION_KEY = "favorites_version"  // Used to trigger flow updates
-    private val FAVORITES_FILE_NAME = ".orgutil_favorites"
+    private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    override suspend fun addToFavorites(fileUri: Uri) :Unit= withContext(Dispatchers.IO) {
-        val favorites = getFavoriteUris().toMutableSet()
-        favorites.add(fileUri.toString())
-        saveFavoritesToFile(favorites)
+    override suspend fun addToFavorites(fileUri: Uri): Unit = withContext(ioDispatcher) {
+        updateFavorites { it.add(fileUri.toString()) }
     }
 
-    override suspend fun removeFromFavorites(fileUri: Uri):Unit = withContext(Dispatchers.IO) {
-        val favorites = getFavoriteUris().toMutableSet()
-        favorites.remove(fileUri.toString())
-        saveFavoritesToFile(favorites)
+    override suspend fun removeFromFavorites(fileUri: Uri): Unit = withContext(ioDispatcher) {
+        updateFavorites { it.remove(fileUri.toString()) }
     }
 
-    override suspend fun isFavorite(fileUri: Uri): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun isFavorite(fileUri: Uri): Boolean = withContext(ioDispatcher) {
         getFavoriteUris().contains(fileUri.toString())
     }
 
     override fun getFavoriteUrisFlow(): Flow<Set<String>> = callbackFlow {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == FAVORITES_FILE_URI_KEY || key == FAVORITES_VERSION_KEY) {
-                trySend(runBlocking { getFavoriteUris() })
+            if (key == FAVORITES_KEY || key == FAVORITES_VERSION_KEY) {
+                trySend(storedFavorites())
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
-        trySend(runBlocking { getFavoriteUris() })
-        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
-    }
-
-    override suspend fun getFavoriteUris(): Set<String> = withContext(Dispatchers.IO) {
-        try {
-            val favoritesFile = getFavoritesFile()
-            if (favoritesFile?.exists() == true) {
-                readFavoritesFromFile(favoritesFile)
-            } else {
-                emptySet()
-            }
-        } catch (e: Exception) {
-            // Fallback to empty set if file reading fails
-            emptySet()
+        trySend(storedFavorites())
+        // Complete the one-time legacy import from the flow as well, without
+        // blocking the collector (no runBlocking on the main thread).
+        val importJob = launch {
+            importLegacyFavoritesIfNeeded()
+            trySend(storedFavorites())
+        }
+        awaitClose {
+            importJob.cancel()
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
         }
     }
 
-    override suspend fun clearFavorites():Unit = withContext(Dispatchers.IO) {
-        saveFavoritesToFile(emptySet())
+    override suspend fun getFavoriteUris(): Set<String> = withContext(ioDispatcher) {
+        importLegacyFavoritesIfNeeded()
+        storedFavorites()
     }
 
-    private suspend fun getFavoritesFile(): DocumentFile? = withContext(Dispatchers.IO) {
-        val treeUri = getStoredTreeUri() ?: return@withContext null
-        
-        try {
-            val documentFile = DocumentFile.fromTreeUri(context, treeUri)
-            if (documentFile?.exists() != true || !documentFile.isDirectory) {
-                return@withContext null
-            }
+    override suspend fun clearFavorites(): Unit = withContext(ioDispatcher) {
+        updateFavorites { it.clear() }
+    }
 
-            // First, try to use cached favorites file URI if available
-            val cachedFileUri = getCachedFavoritesFileUri()
-            if (cachedFileUri != null) {
-                val cachedFile = DocumentFile.fromSingleUri(context, cachedFileUri)
-                if (cachedFile?.exists() == true && cachedFile.isFile) {
-                    return@withContext cachedFile
-                } else {
-                    // Cached file is invalid, clear it
-                    clearCachedFavoritesFileUri()
-                }
-            }
-
-            // Search for existing favorites file (look for files that start with our name)
-            val existingFile = documentFile.listFiles().find { file ->
-                file.isFile && file.name != null && (
-                    file.name == FAVORITES_FILE_NAME ||
-                    file.name!!.startsWith(FAVORITES_FILE_NAME) ||
-                    file.name!!.contains("orgutil") && file.name!!.contains("favorites")
-                )
-            }
-
-            if (existingFile != null) {
-                // Cache the found file URI for future use
-                cacheFavoritesFileUri(existingFile.uri)
-                return@withContext existingFile
-            }
-
-            // Create new favorites file
-            val newFile = documentFile.createFile("text/plain", FAVORITES_FILE_NAME)
-            if (newFile != null) {
-                // Cache the created file URI
-                cacheFavoritesFileUri(newFile.uri)
-                return@withContext newFile
-            }
-
-            null
-        } catch (e: Exception) {
-            android.util.Log.e("FavoriteRepository", "Failed to get favorites file", e)
-            null
+    /**
+     * Applies [transform] to a copy of the stored set and persists it,
+     * bumping [FAVORITES_VERSION_KEY] so observers refresh.
+     */
+    private fun updateFavorites(transform: (MutableSet<String>) -> Unit) {
+        val updated = storedFavorites().toMutableSet()
+        transform(updated)
+        prefs.edit {
+            putStringSet(FAVORITES_KEY, updated)
+            putLong(FAVORITES_VERSION_KEY, prefs.getLong(FAVORITES_VERSION_KEY, 0) + 1)
         }
     }
 
-    private fun getCachedFavoritesFileUri(): Uri? {
-        val uriString = prefs.getString(FAVORITES_FILE_URI_KEY, null) ?: return null
+    private fun storedFavorites(): Set<String> =
+        prefs.getStringSet(FAVORITES_KEY, emptySet())?.toSet() ?: emptySet()
+
+    /**
+     * One-time (per stored tree) import of the legacy `.orgutil_favorites`
+     * file. Idempotent: guarded by a marker preference storing the tree the
+     * import ran for, so entries removed after the import are never
+     * resurrected by a repeat. The legacy file is read-only here.
+     */
+    private suspend fun importLegacyFavoritesIfNeeded() {
+        val treeUri = documentTreeStore.getStoredTreeUri() ?: return
+        val treeUriString = treeUri.toString()
+        if (prefs.getString(LEGACY_IMPORTED_TREE_KEY, null) == treeUriString) return
+
+        val legacyEntries = readLegacyFavoritesFile(treeUri)
+        if (legacyEntries.isNotEmpty()) {
+            val merged = storedFavorites().toMutableSet()
+            merged.addAll(legacyEntries)
+            prefs.edit {
+                putStringSet(FAVORITES_KEY, merged)
+                putLong(FAVORITES_VERSION_KEY, prefs.getLong(FAVORITES_VERSION_KEY, 0) + 1)
+            }
+        }
+        prefs.edit { putString(LEGACY_IMPORTED_TREE_KEY, treeUriString) }
+    }
+
+    /** Reads the legacy favorites file if it exists; returns null-safe entries. Never writes it. */
+    private fun readLegacyFavoritesFile(treeUri: Uri): Set<String> {
         return try {
-            Uri.parse(uriString)
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    private fun cacheFavoritesFileUri(uri: Uri) {
-        prefs.edit().putString(FAVORITES_FILE_URI_KEY, uri.toString()).apply()
-    }
-
-    private fun clearCachedFavoritesFileUri() {
-        prefs.edit().remove(FAVORITES_FILE_URI_KEY).apply()
-    }
-
-    private suspend fun readFavoritesFromFile(favoritesFile: DocumentFile): Set<String> = withContext(Dispatchers.IO) {
-        try {
-            context.contentResolver.openInputStream(favoritesFile.uri)?.use { inputStream ->
-                BufferedReader(InputStreamReader(inputStream)).use { reader ->
-                    reader.readLines().filter { it.isNotBlank() }.toSet()
-                }
+            val root = DocumentFile.fromTreeUri(context, treeUri) ?: return emptySet()
+            if (!root.exists() || !root.isDirectory) return emptySet()
+            val legacyFile = root.listFiles().firstOrNull { file ->
+                file.isFile && file.name != null && isLegacyFavoritesFileName(file.name!!)
+            } ?: return emptySet()
+            context.contentResolver.openInputStream(legacyFile.uri)?.use { inputStream ->
+                inputStream.bufferedReader(Charsets.UTF_8)
+                    .readLines()
+                    .filter { it.isNotBlank() }
+                    .toSet()
             } ?: emptySet()
         } catch (e: Exception) {
+            logE("Legacy favorites import failed; skipping", e)
             emptySet()
         }
     }
 
-    private suspend fun saveFavoritesToFile(favorites: Set<String>) = withContext(Dispatchers.IO) {
-        try {
-            val favoritesFile = getFavoritesFile()
-            if (favoritesFile != null) {
-                // Use "wt" mode to truncate the file before writing (important for removals)
-                context.contentResolver.openOutputStream(favoritesFile.uri, "wt")?.use { outputStream ->
-                    OutputStreamWriter(outputStream).use { writer ->
-                        favorites.forEach { favorite ->
-                            writer.write("$favorite\n")
-                        }
-                        writer.flush() // Ensure content is written
-                    }
-                }
-                // Increment version to trigger flow updates
-                val currentVersion = prefs.getLong(FAVORITES_VERSION_KEY, 0)
-                prefs.edit().putLong(FAVORITES_VERSION_KEY, currentVersion + 1).apply()
-            }else{
-               android.util.Log.e("FavoriteRepository", "Failed to get favorites file")
-            }
-        } catch (e: Exception) {
-            // Log error for debugging - in production, this should use proper logging
-            android.util.Log.e("FavoriteRepository", "Failed to save favorites to file", e)
+    /** android.util.Log is unimplemented in JVM unit tests; never let logging throw. */
+    private fun logE(message: String, throwable: Throwable? = null) {
+        runCatching {
+            if (throwable != null) android.util.Log.e(TAG, message, throwable)
+            else android.util.Log.e(TAG, message)
         }
     }
 
-    private fun getStoredTreeUri(): Uri? {
-        val uriString = prefs.getString(DOCUMENT_TREE_URI_KEY, null) ?: return null
-        return try {
-            Uri.parse(uriString)
-        } catch (e: Exception) {
-            null
-        }
+    private fun isLegacyFavoritesFileName(name: String): Boolean =
+        name == FAVORITES_FILE_NAME ||
+            name.startsWith(FAVORITES_FILE_NAME) ||
+            (name.contains("orgutil") && name.contains("favorites"))
+
+    private companion object {
+        const val TAG = "FavoriteRepository"
+        const val PREFS_NAME = "org_util_prefs"
+        const val FAVORITES_KEY = "favorite_uris"
+        const val FAVORITES_VERSION_KEY = "favorites_version"
+        const val LEGACY_IMPORTED_TREE_KEY = "favorites_legacy_imported_tree"
+        const val FAVORITES_FILE_NAME = ".orgutil_favorites"
     }
 }
