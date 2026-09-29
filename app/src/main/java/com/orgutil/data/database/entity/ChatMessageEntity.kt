@@ -7,6 +7,10 @@ import androidx.room.PrimaryKey
  * A single chat message. Tool-related fields are only populated for
  * assistant tool-call messages:
  * - [toolName] / [toolArgsJson]: what the model asked to run;
+ * - [toolUseId]: the LLM's tool_use block id, pairing this row with its
+ *   assistant turn when the transcript is replayed for the model;
+ * - [toolUsesJson]: assistant rows only - the requested tool_use blocks
+ *   ([TranscriptReplay] format), so a later run still sees what was called;
  * - [riskLevel]: the tool's risk tier at call time;
  * - [approvalState]: PENDING / APPROVED / DENIED / VOIDED (null for plain
  *   text messages and for AUTO-mode runs, where no approval ever happens);
@@ -20,6 +24,8 @@ data class ChatMessageEntity(
     val content: String,
     val toolName: String? = null,
     val toolArgsJson: String? = null,
+    val toolUseId: String? = null,
+    val toolUsesJson: String? = null,
     val toolResultSummary: String? = null,
     val riskLevel: String? = null,
     val approvalState: String? = null,

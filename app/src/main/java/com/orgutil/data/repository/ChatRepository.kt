@@ -32,6 +32,21 @@ class ChatRepository @Inject constructor(
 
     private val json = Json { ignoreUnknownKeys = true }
 
+    /**
+     * Inserts inside one run can land in the same millisecond; transcript
+     * order (and thus tool_use/tool_result pairing on replay) must never
+     * depend on the random-UUID tiebreak, so createdAt stays strictly
+     * increasing within this process.
+     */
+    private var lastMessageTs = 0L
+
+    @Synchronized
+    private fun nextMessageTs(): Long {
+        val now = System.currentTimeMillis()
+        lastMessageTs = maxOf(now, lastMessageTs + 1)
+        return lastMessageTs
+    }
+
     // ---- session management (UI) ----
 
     suspend fun ensureSession(mode: AgentMode, autoArmed: Boolean): ChatSessionEntity {
@@ -79,7 +94,7 @@ class ChatRepository @Inject constructor(
         chatDao.insertMessage(
             ChatMessageEntity(
                 id = id, sessionId = sessionId, role = "user",
-                content = text, createdAt = System.currentTimeMillis()
+                content = text, createdAt = nextMessageTs()
             )
         )
         touchSession(sessionId)
@@ -96,7 +111,9 @@ class ChatRepository @Inject constructor(
         chatDao.insertMessage(
             ChatMessageEntity(
                 id = id, sessionId = sessionId, role = "assistant",
-                content = text, createdAt = System.currentTimeMillis()
+                content = text,
+                toolUsesJson = TranscriptReplay.encodeToolUses(toolUses),
+                createdAt = nextMessageTs()
             )
         )
         touchSession(sessionId)
@@ -117,6 +134,7 @@ class ChatRepository @Inject constructor(
                 id = id, sessionId = sessionId, role = "tool",
                 content = "",
                 toolName = toolUse.name,
+                toolUseId = toolUse.id,
                 toolArgsJson = json.encodeToString(
                     kotlinx.serialization.json.JsonObject.serializer(), toolUse.args
                 ),
@@ -124,7 +142,7 @@ class ChatRepository @Inject constructor(
                 riskLevel = riskLevel.name,
                 approvalState = approvalState.name,
                 decisionSource = decisionSource?.name,
-                createdAt = System.currentTimeMillis()
+                createdAt = nextMessageTs()
             )
         )
         return id
@@ -170,18 +188,8 @@ class ChatRepository @Inject constructor(
         )
     }
 
-    override suspend fun buildLlmMessages(sessionId: String): List<LlmMessage> {
-        val messages = chatDao.getMessages(sessionId)
-        val result = mutableListOf<LlmMessage>()
-        for (message in messages) {
-            when (message.role) {
-                "user" -> result.add(LlmMessage.User(message.content))
-                "assistant" -> result.add(LlmMessage.Assistant(message.content, emptyList()))
-                "tool" -> Unit // tool results are folded in by the loop as it runs
-            }
-        }
-        return result
-    }
+    override suspend fun buildLlmMessages(sessionId: String): List<LlmMessage> =
+        TranscriptReplay.build(chatDao.getMessages(sessionId))
 
     override suspend fun voidPendingApprovals(sessionId: String) {
         chatDao.voidPendingApprovals(sessionId)

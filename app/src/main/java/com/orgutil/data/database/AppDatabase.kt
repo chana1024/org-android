@@ -22,7 +22,7 @@ import com.orgutil.data.database.entity.FileMetadataEntity
         ChatMessageEntity::class,
         ChatAuditLogEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -131,6 +131,23 @@ abstract class AppDatabase : RoomDatabase() {
                     "CREATE INDEX IF NOT EXISTS `index_chat_audit_log_sessionId` " +
                         "ON `chat_audit_log` (`sessionId`)"
                 )
+            }
+        }
+
+        /**
+         * v5 -> v6: transcript replay support for agent chat.
+         * - `chat_message.toolUsesJson`: assistant turns persist their
+         *   tool_use blocks so a later run in the same session can replay
+         *   them for the model.
+         * - `chat_message.toolUseId`: tool rows persist the LLM's tool_use
+         *   block id, pairing each result with its request on replay.
+         * Both nullable; pre-v6 rows replay as before (assistant text only,
+         * tool rows skipped).
+         */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `chat_message` ADD COLUMN `toolUseId` TEXT")
+                db.execSQL("ALTER TABLE `chat_message` ADD COLUMN `toolUsesJson` TEXT")
             }
         }
     }
