@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import android.provider.DocumentsContract
 import com.orgutil.R
+import com.orgutil.domain.indexing.FileIndexStatus
 import com.orgutil.domain.model.OrgFileInfo
 import com.orgutil.ui.components.BreadcrumbCrumb
 import com.orgutil.ui.components.BreadcrumbRow
@@ -80,19 +81,41 @@ fun FileListScreen(
             Column {
                 TopAppBar(
                     title = {
-                        // 根目录显示固定标题；子目录才显示文件夹名，
-                        // 避免 “primary:orgroot” 这类 URI 片段占位。
-                        val title = if (uiState.isAtTreeRoot) {
-                            stringResource(R.string.file_list_title)
+                        // Draft title: "Files" + mono repo chip at root;
+                        // folder name inside a directory.
+                        if (uiState.isAtTreeRoot) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = stringResource(R.string.file_list_title),
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                uiState.currentDirectoryUri?.let {
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Surface(
+                                        shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                                        color = MaterialTheme.colorScheme.surfaceContainer,
+                                        border = androidx.compose.foundation.BorderStroke(
+                                            1.dp, MaterialTheme.colorScheme.outlineVariant
+                                        )
+                                    ) {
+                                        Text(
+                                            text = it.directoryLabel(),
+                                            style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
                         } else {
-                            uiState.currentDirectory?.name
-                                ?: stringResource(R.string.file_list_title)
+                            Text(
+                                text = uiState.currentDirectory?.name
+                                    ?: stringResource(R.string.file_list_title),
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
-                        Text(
-                            text = title,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
                     },
                     navigationIcon = {
                         if (uiState.canNavigateBack) {
@@ -105,6 +128,26 @@ fun FileListScreen(
                         }
                     },
                     actions = {
+                        // Draft: mono "N files" inline in the app bar, with
+                        // a spinner while indexing runs.
+                        val indexRunning = uiState.isIndexRequestInFlight ||
+                            uiState.indexStatus == FileIndexStatus.Running
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            if (indexRunning) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(14.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            }
+                            Text(
+                                text = "${uiState.files.size} files",
+                                style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         IconButton(
                             onClick = viewModel::requestGitSync,
                             enabled = uiState.gitSyncStatus !is GitSyncStatus.Running &&
@@ -138,86 +181,88 @@ fun FileListScreen(
                         .padding(horizontal = 12.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    // 面包屑：根目录一段始终可点（teal），当前目录加粗，
-                    // ‹ 与顶栏返回箭头、系统返回手势走同一条弹出路径。
-                    val crumbs = buildList {
-                        uiState.pathHistory.firstOrNull()?.let {
-                            add(BreadcrumbCrumb(label = it.directoryLabel(), isRoot = true))
+                    // Draft header: at root there is no breadcrumb row — the
+                    // repo chip in the title carries it. Inside a directory:
+                    // breadcrumb + (rare) git status chip on one line.
+                    if (uiState.canNavigateBack) {
+                        val crumbs = buildList {
+                            uiState.pathHistory.firstOrNull()?.let {
+                                add(BreadcrumbCrumb(label = it.directoryLabel(), isRoot = true))
+                            }
+                            uiState.pathHistory.drop(1).forEach {
+                                add(BreadcrumbCrumb(label = it.directoryLabel()))
+                            }
+                            uiState.currentDirectoryUri?.let {
+                                add(BreadcrumbCrumb(label = it.directoryLabel()))
+                            }
                         }
-                        uiState.pathHistory.drop(1).forEach {
-                            add(BreadcrumbCrumb(label = it.directoryLabel()))
-                        }
-                        uiState.currentDirectoryUri?.let {
-                            add(
-                                BreadcrumbCrumb(
-                                    label = it.directoryLabel(),
-                                    isRoot = uiState.pathHistory.isEmpty()
-                                )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            BreadcrumbRow(
+                                crumbs = crumbs,
+                                onCrumbSelected = viewModel::onBreadcrumbSegmentSelected,
+                                onUp = { viewModel.onBackButtonPressed() },
+                                modifier = Modifier.weight(1f)
                             )
+                            if (uiState.gitSyncStatus != GitSyncStatus.Idle) {
+                                GitSyncStatusChip(status = uiState.gitSyncStatus)
+                            }
                         }
                     }
-                    BreadcrumbRow(
-                        crumbs = crumbs,
-                        onCrumbSelected = viewModel::onBreadcrumbSegmentSelected,
-                        onUp = if (uiState.canNavigateBack) {
-                            { viewModel.onBackButtonPressed() }
-                        } else null
-                    )
 
                     var searchActive by remember { mutableStateOf(false) }
-                    SearchBar(
-                        query = uiState.searchQuery,
-                        onQueryChange = { viewModel.onSearchQueryChanged(it) },
-                        onSearch = { viewModel.onSearchQueryChanged(it) },
-                        active = searchActive,
-                        onActiveChange = { searchActive = it },
-                        placeholder = { Text(searchPlaceholder) },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                        trailingIcon = {
-                            if (uiState.searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
-                                    Icon(Icons.Default.Close, contentDescription = null)
-                                }
-                            }
-                        },
-                        windowInsets = WindowInsets(0)
-                    ) {
-                        if (searchActive) {
-                            FileResultsList(
-                                uiState = uiState,
-                                viewModel = viewModel,
-                                onFileSelected = onFileSelected
-                            )
-                        }
-                    }
-
-                    // 模式切换和索引状态合并到一行，Git 状态只在非空闲时
-                    // 出现（空闲状态不携带信息），为文件列表留出更多空间。
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
-                            SegmentedButton(
-                                selected = !isFullText,
-                                onClick = { viewModel.setSearchMode(FileListQueryMode.FILE_LIST) },
-                                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                                label = { Text(stringResource(R.string.search_mode_file_list)) }
-                            )
-                            SegmentedButton(
-                                selected = isFullText,
-                                onClick = { viewModel.setSearchMode(FileListQueryMode.FULL_TEXT) },
-                                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                                label = { Text(stringResource(R.string.search_mode_full_text)) }
-                            )
+                        SearchBar(
+                            query = uiState.searchQuery,
+                            onQueryChange = { viewModel.onSearchQueryChanged(it) },
+                            onSearch = { viewModel.onSearchQueryChanged(it) },
+                            active = searchActive,
+                            onActiveChange = { searchActive = it },
+                            placeholder = { Text(searchPlaceholder) },
+                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                            trailingIcon = {
+                                if (uiState.searchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
+                                        Icon(Icons.Default.Close, contentDescription = null)
+                                    }
+                                }
+                            },
+                            windowInsets = WindowInsets(0),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            if (searchActive) {
+                                FileResultsList(
+                                    uiState = uiState,
+                                    viewModel = viewModel,
+                                    onFileSelected = onFileSelected
+                                )
+                            }
                         }
-                        IndexStatusChip(
-                            status = uiState.indexStatus,
-                            isRequestInFlight = uiState.isIndexRequestInFlight
+
+                        // Draft CJK chip position carries the query-mode
+                        // toggle (本目录 ↔ 全库), replacing the old
+                        // segmented row that the draft doesn't have.
+                        FilterChip(
+                            selected = isFullText,
+                            onClick = {
+                                viewModel.setSearchMode(
+                                    if (isFullText) FileListQueryMode.FILE_LIST
+                                    else FileListQueryMode.FULL_TEXT
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = stringResource(R.string.search_mode_full_text),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         )
-                    }
-                    if (uiState.gitSyncStatus != GitSyncStatus.Idle) {
-                        GitSyncStatusChip(status = uiState.gitSyncStatus)
                     }
                 }
             }
