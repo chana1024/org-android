@@ -24,8 +24,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -33,6 +36,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.orgutil.domain.model.OrgNode
+import com.orgutil.ui.theme.OrgMono
 
 @Composable
 fun OrgRenderer(
@@ -291,13 +295,13 @@ private fun OrgHeadline(
                 Spacer(modifier = Modifier.width(24.dp))
             }
             
-            // Level indicator (stars)
+            // Level indicator — draft renders raw org stars as mono text
             Text(
-                text = "★".repeat(node.level),
-                color = getStarColor(node.level),
-                fontSize = getHeadlineFontSize(node.level),
+                text = "*".repeat(node.level),
+                style = MaterialTheme.typography.labelLarge.copy(fontFamily = OrgMono),
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(end = 8.dp)
+                color = getStarColor(node.level),
+                modifier = Modifier.padding(end = 6.dp)
             )
             
             // TODO state
@@ -335,10 +339,54 @@ private fun OrgHeadline(
             )
         }
         
-        // Right side: Tags
-        if (node.tags.isNotEmpty()) {
-            TagsRow(tags = node.tags)
+        // Right side: planning chip + tags (draft)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            PlanningChip(node = node)
+            if (node.tags.isNotEmpty()) {
+                TagsRow(tags = node.tags)
+            }
         }
+    }
+}
+
+/**
+ * Draft right-aligned mono planning chip: scans the node's own content for
+ * a SCHEDULED/DEADLINE line ("S: 2026-10-03" / "D: 2026-10-01" on error
+ * tint). Nothing renders when the headline carries no planning line.
+ */
+@Composable
+private fun PlanningChip(node: OrgNode) {
+    val planning = remember(node.content) {
+        val line = node.content.lines().firstOrNull {
+            val t = it.trimStart()
+            t.startsWith("SCHEDULED:") || t.startsWith("DEADLINE:")
+        } ?: return@remember null
+        val prefix = if (line.contains("DEADLINE")) "D" else "S"
+        Regex("<([^>]+)>").find(line)?.groupValues?.get(1)?.let { "$prefix: $it" }
+    } ?: return
+
+    val urgent = planning.startsWith("D")
+    Surface(
+        shape = RoundedCornerShape(4.dp),
+        color = if (urgent) {
+            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerLow
+        }
+    ) {
+        Text(
+            text = planning,
+            style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
+            color = if (urgent) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+        )
     }
 }
 
@@ -380,35 +428,107 @@ private fun OrgContent(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(6.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         contentColor = MaterialTheme.colorScheme.onSurfaceVariant
     ) {
         Column(
             modifier = Modifier.padding(12.dp)
         ) {
+            // Collapse :PROPERTIES:…:END: drawers into one expandable row
+            val rendered = mutableListOf<Any>() // String or List<String>
+            var drawer: MutableList<String>? = null
             displayContent.forEach { line ->
                 when {
-                    line.startsWith("- ") || line.startsWith("+ ") -> {
-                        // Bullet point
-                        BulletItem(text = line.removePrefix("- ").removePrefix("+ "))
+                    drawer == null && line.trim() == ":PROPERTIES:" ->
+                        drawer = mutableListOf(line)
+                    drawer != null -> {
+                        drawer!!.add(line)
+                        if (line.trim() == ":END:") {
+                            rendered.add(drawer!!)
+                            drawer = null
+                        }
                     }
-                    line.matches(Regex("\\d+\\.\\s.*")) -> {
-                        // Numbered list
-                        NumberedItem(text = line)
+                    else -> rendered.add(line)
+                }
+            }
+            drawer?.let { rendered.add(it) } // unterminated drawer
+
+            rendered.forEach { item ->
+                when (item) {
+                    is List<*> -> PropertiesDrawer(lines = item.filterIsInstance<String>())
+                    is String -> when {
+                        item.startsWith("- ") || item.startsWith("+ ") -> {
+                            BulletItem(text = item.removePrefix("- ").removePrefix("+ "))
+                        }
+                        item.matches(Regex("\\d+\\.\\s.*")) -> {
+                            NumberedItem(text = item)
+                        }
+                        item.startsWith("#+") -> {
+                            OrgDirective(text = item)
+                        }
+                        else -> {
+                            Text(
+                                text = item,
+                                modifier = Modifier.padding(vertical = 2.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
-                    line.startsWith("#+") -> {
-                        // Org directive (like #+TITLE:, #+AUTHOR:, etc.)
-                        OrgDirective(text = line)
-                    }
-                    else -> {
-                        // Regular text
-                        Text(
-                            text = line,
-                            modifier = Modifier.padding(vertical = 2.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                }
+            }
+        }
+    }
+}
+
+/** Collapsed drawer chip "▸ :PROPERTIES: (N entries)"; expands inline. */
+@Composable
+private fun PropertiesDrawer(lines: List<String>) {
+    var expanded by remember(lines) { mutableStateOf(false) }
+    Column {
+        Surface(
+            onClick = { expanded = !expanded },
+            shape = RoundedCornerShape(6.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = if (expanded) "▾" else "▸",
+                    style = MaterialTheme.typography.labelMedium.copy(fontFamily = OrgMono),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = ":PROPERTIES: (${lines.size - 2} entries)",
+                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        if (expanded) {
+            Column(
+                modifier = Modifier
+                    .padding(start = 8.dp, top = 4.dp)
+                    .drawBehind {
+                        drawLine(
+                            color = androidx.compose.ui.graphics
+                                .Color(0xFFB0B2B0).copy(alpha = 0.5f),
+                            start = androidx.compose.ui.geometry.Offset(0f, 0f),
+                            end = androidx.compose.ui.geometry.Offset(0f, size.height),
+                            strokeWidth = 2f
                         )
                     }
+                    .padding(start = 8.dp)
+            ) {
+                lines.forEach { line ->
+                    Text(
+                        text = line,
+                        style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }

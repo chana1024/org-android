@@ -16,6 +16,8 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.CloudSync
@@ -27,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -38,6 +41,7 @@ import com.orgutil.ui.components.BreadcrumbCrumb
 import com.orgutil.ui.components.BreadcrumbRow
 import com.orgutil.ui.components.GitSyncStatusChip
 import com.orgutil.ui.components.IndexStatusChip
+import com.orgutil.ui.theme.OrgMono
 import com.orgutil.domain.sync.GitSyncStatus
 import com.orgutil.ui.viewmodel.FileListQueryMode
 import com.orgutil.ui.viewmodel.FileListUiState
@@ -315,28 +319,65 @@ private fun FileResultsList(
     viewModel: FileListViewModel,
     onFileSelected: (Uri, Int?, Int?, String?) -> Unit
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        items(uiState.files) { file ->
-            FileItem(
-                file = file,
-                onClick = {
-                    if (file.isDirectory) {
-                        viewModel.onDirectoryClicked(file)
-                    } else {
-                        onFileSelected(
-                            file.uri,
-                            file.searchMatchContentOffset,
-                            file.searchPreviewMatchLength,
-                            uiState.searchQuery.takeIf { file.searchPreview != null }
-                        )
-                    }
-                },
-                onFavoriteToggle = { viewModel.toggleFavorite(file) }
+    val onItemClicked: (OrgFileInfo) -> Unit = { file ->
+        if (file.isDirectory) {
+            viewModel.onDirectoryClicked(file)
+        } else {
+            onFileSelected(
+                file.uri,
+                file.searchMatchContentOffset,
+                file.searchPreviewMatchLength,
+                uiState.searchQuery.takeIf { file.searchPreview != null }
             )
+        }
+    }
+
+    val isSearchMode = uiState.files.any { !it.searchPreview.isNullOrBlank() }
+    if (isSearchMode) {
+        // Search results keep per-item cards (preview layout).
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(vertical = 4.dp, horizontal = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            items(uiState.files) { file ->
+                FileItem(
+                    file = file,
+                    onClick = { onItemClicked(file) },
+                    onFavoriteToggle = { viewModel.toggleFavorite(file) }
+                )
+            }
+        }
+    } else {
+        // Draft grouping: the whole list is one card of rows with dividers.
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer
+                    )
+                ) {
+                    Column {
+                        uiState.files.forEachIndexed { index, file ->
+                            if (index > 0) {
+                                HorizontalDivider(
+                                    thickness = 1.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                )
+                            }
+                            FileItem(
+                                file = file,
+                                onClick = { onItemClicked(file) },
+                                onFavoriteToggle = { viewModel.toggleFavorite(file) }
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -364,65 +405,83 @@ fun FileItem(
         return
     }
 
-    ListItem(
-        headlineContent = {
-            Text(
-                text = file.name,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+    // Draft row: leading icon in a bordered box, mono filename, mono
+    // metadata, star favorite / directory chevron at the right.
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Surface(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp, MaterialTheme.colorScheme.outlineVariant
             )
-        },
-        supportingContent = if (file.isDirectory) {
-            null
-        } else {
-            {
-                Text(
-                    text = listOfNotNull(
-                        dateFormat.format(Date(file.lastModified)),
-                        file.size.takeIf { it > 0 }?.let { "$it bytes" }
-                    ).joinToString("  ·  "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        },
-        leadingContent = {
+        ) {
             Icon(
                 imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.Default.Description,
                 contentDescription = if (file.isDirectory) "Directory" else "File",
                 tint = if (file.isDirectory) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(6.dp)
+                    .size(20.dp)
             )
-        },
-        trailingContent = if (file.isDirectory) {
-            {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = file.name,
+                    style = MaterialTheme.typography.labelLarge.copy(fontFamily = OrgMono),
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-            }
-        } else {
-            {
-                IconButton(onClick = onFavoriteToggle) {
+                if (file.isFavorite) {
+                    Spacer(modifier = Modifier.width(4.dp))
                     Icon(
-                        imageVector = if (file.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        contentDescription = if (file.isFavorite) stringResource(R.string.remove_from_favorites) else stringResource(R.string.add_to_favorites),
-                        tint = if (file.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        imageVector = Icons.Default.Star,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(14.dp)
                     )
                 }
             }
-        },
-        colors = if (file.isDirectory) {
-            ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+            Text(
+                text = if (file.isDirectory) {
+                    stringResource(R.string.search_mode_hint_directory)
+                } else {
+                    listOfNotNull(
+                        dateFormat.format(Date(file.lastModified)),
+                        file.size.takeIf { it > 0 }?.let { "$it bytes" }
+                    ).joinToString("  ·  ")
+                },
+                style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        if (file.isDirectory) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         } else {
-            ListItemDefaults.colors()
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-    )
+            IconButton(onClick = onFavoriteToggle) {
+                Icon(
+                    imageVector = if (file.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
+                    contentDescription = if (file.isFavorite) stringResource(R.string.remove_from_favorites) else stringResource(R.string.add_to_favorites),
+                    tint = if (file.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
 }
 
 @Composable

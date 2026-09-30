@@ -1,6 +1,7 @@
 package com.orgutil.ui.screens
 
 import android.net.Uri
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -18,6 +19,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.orgutil.R
@@ -88,8 +91,28 @@ fun FileEditorScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
-                    Text(uiState.document?.fileName ?: "Loading...") 
+                title = {
+                    // Draft breadcrumb title: dim directory + bold mono file name
+                    val fileName = uiState.document?.fileName ?: "Loading..."
+                    val dir = fileName.substringBeforeLast('/', "")
+                    val name = fileName.substringAfterLast('/')
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (dir.isNotBlank()) {
+                            Text(
+                                text = "$dir/",
+                                style = MaterialTheme.typography.labelMedium.copy(fontFamily = OrgMono),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+                        Text(
+                            text = name,
+                            style = MaterialTheme.typography.titleMedium.copy(fontFamily = OrgMono),
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
@@ -116,15 +139,32 @@ fun FileEditorScreen(
                         }
                     }
                     
-                    // View mode toggle
+                    // Draft VIEW/EDIT pill toggle
                     if (uiState.document != null && !uiState.isLoading) {
-                        IconButton(
-                            onClick = { viewModel.toggleViewMode() }
+                        Surface(
+                            onClick = { viewModel.toggleViewMode() },
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainer,
+                            modifier = Modifier.padding(end = 4.dp)
                         ) {
-                            Icon(
-                                imageVector = if (uiState.isInViewMode) Icons.Default.Edit else Icons.Default.Visibility,
-                                contentDescription = if (uiState.isInViewMode) "Edit" else "View"
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (uiState.isInViewMode) Icons.Default.Edit else Icons.Default.Visibility,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(15.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = if (uiState.isInViewMode) "VIEW" else "EDIT",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontFamily = OrgMono),
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                     }
                     

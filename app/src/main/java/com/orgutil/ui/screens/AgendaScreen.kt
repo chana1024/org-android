@@ -1,6 +1,8 @@
 package com.orgutil.ui.screens
 
 import android.net.Uri
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,12 +13,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -25,30 +32,31 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.orgutil.domain.agenda.OrgAgenda
-import com.orgutil.ui.components.OrgStateChip
-import com.orgutil.ui.components.PriorityChip
-import com.orgutil.ui.components.SectionCard
-import com.orgutil.ui.components.SectionHeader
 import com.orgutil.domain.agenda.OrgAgendaEntry
+import com.orgutil.ui.components.OrgStateChip
+import com.orgutil.ui.components.orgStateIsDone
+import com.orgutil.ui.components.PriorityChip
 import com.orgutil.ui.theme.OrgMono
 import com.orgutil.ui.viewmodel.AgendaUiState
 import com.orgutil.ui.viewmodel.AgendaViewMode
 import com.orgutil.ui.viewmodel.AgendaViewModel
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -68,7 +76,19 @@ fun AgendaScreen(
         topBar = {
             Column {
                 TopAppBar(
-                    title = { Text("GTD Agenda") },
+                    title = {
+                        Column {
+                            Text(
+                                text = "GTD Agenda",
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = remember { LocalDate.now().format(HEADER_DATE) },
+                                style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    },
                     actions = {
                         IconButton(onClick = viewModel::refresh) {
                             Icon(
@@ -78,7 +98,7 @@ fun AgendaScreen(
                         }
                     }
                 )
-                AgendaModeSelector(
+                AgendaModePills(
                     selectedMode = uiState.selectedMode,
                     onModeSelected = viewModel::setMode
                 )
@@ -116,24 +136,56 @@ fun AgendaScreen(
     }
 }
 
+/** Draft pills: active = highest container + teal dot; inactive = low container. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AgendaModeSelector(
+private fun AgendaModePills(
     selectedMode: AgendaViewMode,
     onModeSelected: (AgendaViewMode) -> Unit
 ) {
-    val modes = AgendaViewMode.entries
-    SingleChoiceSegmentedButtonRow(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        modes.forEachIndexed { index, mode ->
-            SegmentedButton(
-                selected = selectedMode == mode,
+        AgendaViewMode.entries.forEach { mode ->
+            val active = selectedMode == mode
+            Surface(
                 onClick = { onModeSelected(mode) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = modes.size),
-                label = { Text(mode.label) }
-            )
+                shape = RoundedCornerShape(8.dp),
+                color = if (active) {
+                    MaterialTheme.colorScheme.surfaceContainerHighest
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerLow
+                },
+                modifier = Modifier.weight(1f)
+            ) {
+                Row(
+                    modifier = Modifier.padding(vertical = 6.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (active) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .background(MaterialTheme.colorScheme.primary, CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+                    Text(
+                        text = mode.label,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+                        color = if (active) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
+            }
         }
     }
 }
@@ -144,38 +196,25 @@ private fun AgendaContent(
     onFileSelected: (Uri, Int?, Int?, String?) -> Unit
 ) {
     val agenda = requireNotNull(uiState.agenda)
+    val sections = agenda.sectionsFor(uiState.selectedMode)
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        contentPadding = PaddingValues(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        if (uiState.selectedMode == AgendaViewMode.DAILY && agenda.goalText.isNotBlank()) {
-            item {
-                GoalCard(agenda.goalText)
-            }
+        if (uiState.selectedMode == AgendaViewMode.DAILY) {
+            item { AgendaStatsCard(sections = sections, goalText = agenda.goalText) }
         }
 
-        val sections = agenda.sectionsFor(uiState.selectedMode)
         sections.forEach { section ->
-            item {
-                SectionHeader(title = section.title)
-            }
-            if (section.entries.isEmpty()) {
-                item {
-                    SectionCard(message = section.emptyText)
-                }
-            } else {
-                items(section.entries) { entry ->
-                    AgendaEntryCard(
-                        entry = entry,
-                        onClick = {
-                            onFileSelected(
-                                entry.uri,
-                                entry.titleOffset,
-                                entry.title.length,
-                                null
-                            )
-                        }
+            item(key = "${section.title}-card") {
+                AgendaSectionCard(section) { entry ->
+                    onFileSelected(
+                        entry.uri,
+                        entry.titleOffset,
+                        entry.title.length,
+                        null
                     )
                 }
             }
@@ -183,83 +222,232 @@ private fun AgendaContent(
     }
 }
 
+/**
+ * Draft stats card: today ring progress + goal + mono counts
+ * (Today / Next / Waiting / Inbox from the daily sections).
+ */
 @Composable
-private fun GoalCard(goalText: String) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+private fun AgendaStatsCard(
+    sections: List<AgendaSection>,
+    goalText: String
+) {
+    val today = sections.firstOrNull { it.title == "Today" }?.entries.orEmpty()
+    val counts = sections.map { it.entries.size }
+    val doneToday = today.count { it.todo != null && orgStateIsDone(it.todo) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = "Total goal",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = goalText,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Box(contentAlignment = Alignment.Center) {
+                val progress = if (today.isEmpty()) 0f else doneToday.toFloat() / today.size
+                CircularProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.size(40.dp),
+                    strokeWidth = 3.dp,
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                )
+                Text(
+                    text = "${(progress * 100).toInt()}%",
+                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                if (goalText.isNotBlank()) {
+                    Text(
+                        text = goalText,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                } else {
+                    Text(
+                        text = "Today",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Text(
+                    text = "$doneToday of ${today.size} done",
+                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp, MaterialTheme.colorScheme.outlineVariant
+                )
+            ) {
+                Text(
+                    text = "T:${counts.getOrElse(0) { 0 }} · N:${counts.getOrElse(1) { 0 }} · " +
+                        "W:${counts.getOrElse(2) { 0 }} · I:${counts.getOrElse(3) { 0 }}",
+                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+
+/** One section = one card holding the rows (draft grouping). */
 @Composable
-private fun AgendaEntryCard(
-    entry: OrgAgendaEntry,
-    onClick: () -> Unit
+private fun AgendaSectionCard(
+    section: AgendaSection,
+    onEntryClick: (OrgAgendaEntry) -> Unit
 ) {
     Card(
-        onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = (entry.parentTitles.size * 12).dp)
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        )
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
+        Column {
+            // Section header: chevron + bold small title + mono count
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                entry.todo?.let { todo ->
-                    OrgStateChip(state = todo)
-                }
-                entry.priority?.let { priority ->
-                    PriorityChip(priority = priority)
-                }
-                Text(
-                    text = entry.title,
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
                 )
-            }
-            if (entry.parentTitles.isNotEmpty()) {
                 Text(
-                    text = entry.parentTitles.joinToString(" > "),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    text = section.title,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold
                 )
-            }
-            val planningText = entry.planningText()
-            val detailText = listOf(entry.fileName, planningText)
-                .filter { it.isNotBlank() }
-                .joinToString("  ")
-            if (detailText.isNotBlank()) {
                 Text(
-                    text = detailText,
-                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = OrgMono),
+                    text = "${section.entries.size}",
+                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            if (section.entries.isEmpty()) {
+                Text(
+                    text = section.emptyText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                )
+            } else {
+                section.entries.forEachIndexed { index, entry ->
+                    AgendaEntryRow(
+                        entry = entry,
+                        showDivider = index > 0,
+                        onClick = { onEntryClick(entry) }
+                    )
+                }
+            }
         }
+    }
+}
+
+/** Draft row: mono breadcrumb above, chips + title left, mono time right. */
+@Composable
+private fun AgendaEntryRow(
+    entry: OrgAgendaEntry,
+    showDivider: Boolean,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+    ) {
+        if (showDivider) {
+            androidx.compose.material3.HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+            )
+        }
+        if (entry.parentTitles.isNotEmpty()) {
+            Text(
+                text = entry.parentTitles.joinToString(" > "),
+                style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            entry.priority?.let { PriorityChip(priority = it) }
+            entry.todo?.let { OrgStateChip(state = it) }
+            Text(
+                text = entry.title,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = if (entry.todo != null && orgStateIsDone(entry.todo)) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            EntryTimeChip(entry)
+        }
+    }
+}
+
+/** Right-aligned mono time: deadline on error tint, scheduled plain, else —. */
+@Composable
+private fun EntryTimeChip(entry: OrgAgendaEntry) {
+    val (text, urgent) = when {
+        entry.deadline != null -> entry.deadline.format(SHORT_DATE).let { it to true }
+        entry.scheduled != null -> entry.scheduled.format(SHORT_DATE).let { it to false }
+        entry.timestamp != null -> entry.timestamp.format(SHORT_DATE).let { it to false }
+        else -> "—" to false
+    }
+    val prefix = when {
+        entry.deadline != null -> "D: "
+        entry.scheduled != null -> "S: "
+        else -> ""
+    }
+    Surface(
+        shape = RoundedCornerShape(4.dp),
+        color = if (urgent) {
+            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerLow
+        }
+    ) {
+        Text(
+            text = prefix + text,
+            style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
+            color = if (urgent) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+        )
     }
 }
 
@@ -320,13 +508,8 @@ private fun OrgAgenda.sectionsFor(mode: AgendaViewMode): List<AgendaSection> {
     }
 }
 
-private fun OrgAgendaEntry.planningText(): String {
-    return listOfNotNull(
-        scheduled?.let { "Scheduled: $it" },
-        deadline?.let { "Deadline: $it" },
-        timestamp?.let { "Time: $it" }
-    ).joinToString("  ")
-}
+private val HEADER_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, MMM dd")
+private val SHORT_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM dd")
 
 private val AgendaViewMode.label: String
     get() = when (this) {

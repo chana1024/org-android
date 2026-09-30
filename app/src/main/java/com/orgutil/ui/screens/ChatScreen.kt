@@ -64,6 +64,8 @@ import com.orgutil.domain.chat.ApprovalState
 import com.orgutil.domain.chat.ChatMessageView
 import com.orgutil.domain.chat.RiskLevel
 import com.orgutil.ui.theme.OrgMono
+import java.util.Date
+import java.util.Locale
 import com.orgutil.ui.viewmodel.ChatViewModel
 import com.orgutil.ui.viewmodel.ChatUiState
 
@@ -85,7 +87,16 @@ fun ChatScreen(viewModel: ChatViewModel = hiltViewModel()) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Chat") },
+                title = {
+                    Column {
+                        Text("Chat", fontWeight = FontWeight.SemiBold)
+                        Text(
+                            text = "Agent · org-mode",
+                            style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
                 actions = {
                     IconButton(onClick = { showApiKeyDialog = true }) {
                         Icon(
@@ -94,6 +105,51 @@ fun ChatScreen(viewModel: ChatViewModel = hiltViewModel()) {
                             tint = if (uiState.apiKeyConfigured) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                    // Draft 全自动 pill toggle in the top bar
+                    val autoMode = uiState.mode == AgentMode.AUTO
+                    Surface(
+                        onClick = {
+                            if (autoMode) {
+                                viewModel.switchMode(AgentMode.APPROVAL, autoArmed = false)
+                            } else {
+                                showAutoArmDialog = true
+                            }
+                        },
+                        shape = RoundedCornerShape(50),
+                        color = if (autoMode) {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                        } else {
+                            MaterialTheme.colorScheme.surfaceContainerLow
+                        },
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (autoMode) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.outlineVariant
+                        ),
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .background(
+                                        if (autoMode) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.outline,
+                                        androidx.compose.foundation.shape.CircleShape
+                                    )
+                            )
+                            Text(
+                                text = "全自动",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (autoMode) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             )
@@ -104,29 +160,6 @@ fun ChatScreen(viewModel: ChatViewModel = hiltViewModel()) {
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // ---- mode selector ----
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
-                    SegmentedButton(
-                        selected = uiState.mode == AgentMode.APPROVAL,
-                        onClick = { viewModel.switchMode(AgentMode.APPROVAL, autoArmed = false) },
-                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-                    ) { Text("审批") }
-                    SegmentedButton(
-                        selected = uiState.mode == AgentMode.AUTO,
-                        onClick = {
-                            if (uiState.mode != AgentMode.AUTO) showAutoArmDialog = true
-                        },
-                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-                    ) { Text("全自动") }
-                }
-            }
-
         if (uiState.mode == AgentMode.AUTO) {
             Text(
                 text = "全自动模式：agent 将无确认、无限额地创建、修改、删除笔记，并可能提交并推送远端。删除不可恢复。",
@@ -159,6 +192,32 @@ fun ChatScreen(viewModel: ChatViewModel = hiltViewModel()) {
             contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            // Draft thread timestamp chip
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp, MaterialTheme.colorScheme.outlineVariant
+                        )
+                    ) {
+                        Text(
+                            text = remember {
+                                java.text.SimpleDateFormat(
+                                    "Today HH:mm", Locale.getDefault()
+                                ).format(Date())
+                            },
+                            style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+            }
             items(uiState.messages, key = { it.id }) { message ->
                 ChatMessageCard(message)
             }
@@ -279,46 +338,82 @@ private fun ApprovalCard(
     onApproveSession: (() -> Unit)?,
     onDeny: () -> Unit
 ) {
-    Card(
+    // Draft approval card: error left border + CONFIRM REQUIRED chip
+    val isHigh = pending.riskLevel == RiskLevel.HIGH
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 4.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = when (pending.riskLevel) {
-                RiskLevel.HIGH -> MaterialTheme.colorScheme.errorContainer
-                else -> MaterialTheme.colorScheme.secondaryContainer
-            }
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = androidx.compose.foundation.BorderStroke(
+            width = 3.dp,
+            color = if (isHigh) MaterialTheme.colorScheme.error
+            else MaterialTheme.colorScheme.tertiary
         )
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = "请求确认：${pending.toolName}",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-            if (pending.riskLevel == RiskLevel.HIGH) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "请求确认：${pending.toolName}",
+                    style = MaterialTheme.typography.titleSmall.copy(fontFamily = OrgMono),
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                if (isHigh) {
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
+                        )
+                    ) {
+                        Text(
+                            text = "CONFIRM REQUIRED",
+                            style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+            if (isHigh) {
                 Text(
                     text = "高风险操作，不可会话放行",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.error
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 2.dp)
                 )
             }
             if (pending.argsDigest.isNotBlank()) {
-                Text(
-                    text = pending.argsDigest,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Text(
+                        text = pending.argsDigest,
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = OrgMono),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                    )
+                }
             }
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(onClick = onDeny) { Text("拒绝") }
-                onApproveSession?.let {
-                    TextButton(onClick = it) { Text("本会话允许") }
-                }
                 Button(onClick = onApproveOnce) { Text("仅本次允许") }
+                onApproveSession?.let {
+                    OutlinedButton(onClick = it) { Text("本会话允许") }
+                }
+                TextButton(onClick = onDeny) { Text("拒绝") }
             }
         }
     }
@@ -362,31 +457,56 @@ private fun ChatBubble(text: String, isUser: Boolean, isStreaming: Boolean = fal
 @Composable
 private fun ToolCallCard(message: ChatMessageView) {
     val state = message.approvalState
-    Card(
+    val failed = state == ApprovalState.DENIED || state == ApprovalState.VOIDED ||
+        message.toolResultSummary?.startsWith("✗") == true
+    // Draft tool card: teal left border (error when failed), mono title,
+    // status pill, mono args block.
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = when {
-                state == ApprovalState.DENIED || state == ApprovalState.VOIDED ->
-                    MaterialTheme.colorScheme.errorContainer
-                message.toolResultSummary?.startsWith("✗") == true ->
-                    MaterialTheme.colorScheme.errorContainer
-                else -> MaterialTheme.colorScheme.surfaceContainerHigh
-            }
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = androidx.compose.foundation.BorderStroke(
+            width = 3.dp,
+            color = if (failed) MaterialTheme.colorScheme.error
+            else MaterialTheme.colorScheme.primary
         )
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                ToolStatusBadge(state = state, resultSummary = message.toolResultSummary)
-                Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = message.toolName ?: "tool",
+                    text = "tool: ${message.toolName ?: "?"}",
                     style = MaterialTheme.typography.titleSmall.copy(fontFamily = OrgMono),
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f)
                 )
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp, MaterialTheme.colorScheme.outlineVariant
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        ToolStatusBadge(state = state, resultSummary = message.toolResultSummary)
+                    }
+                }
             }
             message.toolResultSummary?.let { summary ->
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(text = summary, style = MaterialTheme.typography.bodySmall)
+                Spacer(modifier = Modifier.height(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow
+                ) {
+                    Text(
+                        text = summary,
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = OrgMono),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                    )
+                }
             }
         }
     }
