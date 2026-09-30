@@ -28,7 +28,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -41,6 +40,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.orgutil.domain.agenda.OrgAgenda
+import com.orgutil.ui.components.OrgStateChip
+import com.orgutil.ui.components.PriorityChip
+import com.orgutil.ui.components.SectionCard
+import com.orgutil.ui.components.SectionHeader
 import com.orgutil.domain.agenda.OrgAgendaEntry
 import com.orgutil.ui.viewmodel.AgendaUiState
 import com.orgutil.ui.viewmodel.AgendaViewMode
@@ -154,15 +157,11 @@ private fun AgendaContent(
         val sections = agenda.sectionsFor(uiState.selectedMode)
         sections.forEach { section ->
             item {
-                Text(
-                    text = section.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                SectionHeader(title = section.title)
             }
             if (section.entries.isEmpty()) {
                 item {
-                    EmptySectionCard(section.emptyText)
+                    SectionCard(message = section.emptyText)
                 }
             } else {
                 items(section.entries) { entry ->
@@ -226,14 +225,10 @@ private fun AgendaEntryCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 entry.todo?.let { todo ->
-                    CompactLabel(todo)
+                    OrgStateChip(state = todo)
                 }
                 entry.priority?.let { priority ->
-                    CompactLabel(
-                        text = "#$priority",
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
+                    PriorityChip(priority = priority)
                 }
                 Text(
                     text = entry.title,
@@ -264,38 +259,6 @@ private fun AgendaEntryCard(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun CompactLabel(
-    text: String,
-    containerColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primaryContainer,
-    contentColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onPrimaryContainer
-) {
-    Surface(
-        color = containerColor,
-        contentColor = contentColor,
-        shape = MaterialTheme.shapes.extraSmall
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            style = MaterialTheme.typography.labelSmall,
-            maxLines = 1
-        )
-    }
-}
-
-@Composable
-private fun EmptySectionCard(message: String) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = message,
-            modifier = Modifier.padding(16.dp),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 

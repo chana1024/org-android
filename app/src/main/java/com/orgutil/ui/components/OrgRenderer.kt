@@ -29,10 +29,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.orgutil.domain.model.OrgNode
-import com.orgutil.ui.theme.LocalExtendedColors
 
 @Composable
 fun OrgRenderer(
@@ -302,26 +302,36 @@ private fun OrgHeadline(
             
             // TODO state
             if (!node.todo.isNullOrBlank()) {
-                TodoBadge(
-                    todoState = node.todo,
+                OrgStateChip(
+                    state = node.todo,
                     modifier = Modifier.padding(end = 8.dp)
                 )
             }
-            
+
             // Priority
             if (!node.priority.isNullOrBlank()) {
-                PriorityBadge(
+                PriorityChip(
                     priority = node.priority,
                     modifier = Modifier.padding(end = 8.dp)
                 )
             }
-            
-            // Title
+
+            // Title — DONE items strike through, cancelled items dim
+            val todo = node.todo
             Text(
                 text = node.title,
                 fontSize = getHeadlineFontSize(node.level),
                 fontWeight = getHeadlineFontWeight(node.level),
-                color = MaterialTheme.colorScheme.onSurface
+                color = if (todo != null && orgStateIsCancelled(todo)) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+                textDecoration = if (todo != null && orgStateIsDone(todo)) {
+                    TextDecoration.LineThrough
+                } else {
+                    null
+                }
             )
         }
         
@@ -329,50 +339,6 @@ private fun OrgHeadline(
         if (node.tags.isNotEmpty()) {
             TagsRow(tags = node.tags)
         }
-    }
-}
-
-@Composable
-private fun TodoBadge(
-    todoState: String,
-    modifier: Modifier = Modifier
-) {
-    val (backgroundColor, textColor) = getTodoColors(todoState)
-
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
-        color = backgroundColor,
-        contentColor = textColor
-    ) {
-        Text(
-            text = todoState,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}
-
-@Composable
-private fun PriorityBadge(
-    priority: String,
-    modifier: Modifier = Modifier
-) {
-    val (containerColor, contentColor) = getPriorityColors(priority)
-
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(4.dp),
-        color = containerColor,
-        contentColor = contentColor
-    ) {
-        Text(
-            text = "[#$priority]",
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold
-        )
     }
 }
 
@@ -388,25 +354,6 @@ private fun TagsRow(
         tags.forEach { tag ->
             TagChip(tag = tag)
         }
-    }
-}
-
-@Composable
-private fun TagChip(
-    tag: String,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-    ) {
-        Text(
-            text = ":$tag:",
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            style = MaterialTheme.typography.labelSmall
-        )
     }
 }
 
@@ -527,13 +474,13 @@ private fun OrgDirective(
 
 // Helper functions for styling
 
+/** Level stars stay neutral per the flat design; only level 1 gets teal. */
 @Composable
 private fun getStarColor(level: Int): Color {
-    return when (level) {
-        1 -> MaterialTheme.colorScheme.primary
-        2 -> MaterialTheme.colorScheme.secondary
-        3 -> MaterialTheme.colorScheme.tertiary
-        else -> MaterialTheme.colorScheme.outline
+    return if (level == 1) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.outlineVariant
     }
 }
 
@@ -549,27 +496,4 @@ private fun getHeadlineFontWeight(level: Int) = when (level) {
     1, 2 -> FontWeight.Bold
     3 -> FontWeight.SemiBold
     else -> FontWeight.Medium
-}
-
-@Composable
-private fun getTodoColors(todoState: String): Pair<Color, Color> {
-    return when (todoState.uppercase()) {
-        "TODO" -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
-        "IN-PROGRESS", "STARTED" -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
-        "WAITING" -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
-        "DONE" -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
-        "CANCELLED", "CANCELED" -> MaterialTheme.colorScheme.outline.copy(alpha = 0.2f) to MaterialTheme.colorScheme.onSurfaceVariant
-        else -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
-    }
-}
-
-@Composable
-private fun getPriorityColors(priority: String): Pair<Color, Color> {
-    val extended = LocalExtendedColors.current
-    return when (priority.uppercase()) {
-        "A" -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
-        "B" -> extended.warningContainer to extended.onWarningContainer
-        "C" -> extended.infoContainer to extended.onInfoContainer
-        else -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
-    }
 }
