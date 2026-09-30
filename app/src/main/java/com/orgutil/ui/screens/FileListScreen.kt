@@ -59,10 +59,14 @@ fun FileListScreen(
     val uiState by viewModel.uiState.collectAsState()
     val isFullText = uiState.isFullTextMode
 
-    val searchPlaceholder = if (isFullText)
-        stringResource(R.string.search_placeholder_global_search)
-    else
-        stringResource(R.string.search_placeholder_global_list)
+    val searchPlaceholder = when {
+        isFullText -> stringResource(R.string.search_placeholder_global_search)
+        !uiState.isAtTreeRoot -> {
+            // Draft subdir page: scoped placeholder.
+            "Search in ${uiState.currentDirectory?.name ?: ""}/…"
+        }
+        else -> stringResource(R.string.search_placeholder_global_list)
+    }
 
     val documentTreeLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -81,14 +85,16 @@ fun FileListScreen(
             Column {
                 TopAppBar(
                     title = {
-                        // Draft title: "Files" + mono repo chip at root;
-                        // folder name inside a directory.
-                        if (uiState.isAtTreeRoot) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = stringResource(R.string.file_list_title),
-                                    fontWeight = FontWeight.SemiBold
-                                )
+                        // Draft (both pages): the title stays "Files"; the
+                        // repo chip appears at the root page, and inside a
+                        // directory the breadcrumb row below carries the
+                        // path — the folder name never replaces the title.
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = stringResource(R.string.file_list_title),
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            if (uiState.isAtTreeRoot) {
                                 uiState.currentDirectoryUri?.let {
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Surface(
@@ -107,14 +113,6 @@ fun FileListScreen(
                                     }
                                 }
                             }
-                        } else {
-                            Text(
-                                text = uiState.currentDirectory?.name
-                                    ?: stringResource(R.string.file_list_title),
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
                         }
                     },
                     navigationIcon = {
@@ -143,7 +141,8 @@ fun FileListScreen(
                                 )
                             }
                             Text(
-                                text = "${uiState.files.size} files",
+                                text = "${uiState.files.size} " +
+                                    if (uiState.isAtTreeRoot) "files" else "items",
                                 style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
