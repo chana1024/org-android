@@ -63,6 +63,9 @@ import com.orgutil.domain.chat.AgentMode
 import com.orgutil.domain.chat.ApprovalState
 import com.orgutil.domain.chat.ChatMessageView
 import com.orgutil.domain.chat.RiskLevel
+import com.orgutil.ui.components.OrgTopBar
+import com.orgutil.ui.components.OrgTopBarIcon
+import com.orgutil.ui.components.OrgMonoChip
 import com.orgutil.ui.theme.OrgMono
 import java.util.Date
 import java.util.Locale
@@ -86,16 +89,14 @@ fun ChatScreen(viewModel: ChatViewModel = hiltViewModel()) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("Chat", fontWeight = FontWeight.SemiBold)
-                        Text(
-                            text = "Agent · org-mode",
-                            style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+            OrgTopBar(
+                title = "Chat",
+                subtitle = {
+                    Text(
+                        text = "Agent · org-mode",
+                        style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 },
                 actions = {
                     IconButton(onClick = { showApiKeyDialog = true }) {
@@ -436,13 +437,15 @@ private fun ChatBubble(text: String, isUser: Boolean, isStreaming: Boolean = fal
     ) {
         Surface(
             shape = RoundedCornerShape(
-                topStart = 20.dp,
-                topEnd = 20.dp,
-                bottomStart = if (isUser) 20.dp else 6.dp,
-                bottomEnd = if (isUser) 6.dp else 20.dp
+                topStart = 16.dp,
+                topEnd = 16.dp,
+                bottomStart = if (isUser) 16.dp else 6.dp,
+                bottomEnd = if (isUser) 6.dp else 16.dp
             ),
-            color = if (isUser) MaterialTheme.colorScheme.primaryContainer
-            else MaterialTheme.colorScheme.surfaceContainerHigh,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            border = if (isUser) androidx.compose.foundation.BorderStroke(
+                1.dp, MaterialTheme.colorScheme.outlineVariant
+            ) else null,
             modifier = Modifier.widthIn(max = 300.dp)
         ) {
             Text(

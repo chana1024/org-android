@@ -42,6 +42,9 @@ import com.orgutil.ui.components.BreadcrumbCrumb
 import com.orgutil.ui.components.BreadcrumbRow
 import com.orgutil.ui.components.GitSyncStatusChip
 import com.orgutil.ui.components.IndexStatusChip
+import com.orgutil.ui.components.OrgMonoChip
+import com.orgutil.ui.components.OrgTopBar
+import com.orgutil.ui.components.OrgTopBarIcon
 import com.orgutil.ui.theme.OrgMono
 import com.orgutil.domain.sync.GitSyncStatus
 import com.orgutil.ui.viewmodel.FileListQueryMode
@@ -83,51 +86,16 @@ fun FileListScreen(
     Scaffold(
         topBar = {
             Column {
-                TopAppBar(
-                    title = {
-                        // Draft (both pages): the title stays "Files"; the
-                        // repo chip appears at the root page, and inside a
-                        // directory the breadcrumb row below carries the
-                        // path — the folder name never replaces the title.
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = stringResource(R.string.file_list_title),
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            if (uiState.isAtTreeRoot) {
-                                uiState.currentDirectoryUri?.let {
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Surface(
-                                        shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
-                                        color = MaterialTheme.colorScheme.surfaceContainer,
-                                        border = androidx.compose.foundation.BorderStroke(
-                                            1.dp, MaterialTheme.colorScheme.outlineVariant
-                                        )
-                                    ) {
-                                        Text(
-                                            text = it.directoryLabel(),
-                                            style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    navigationIcon = {
-                        if (uiState.canNavigateBack) {
-                            IconButton(onClick = { viewModel.onBackButtonPressed() }) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = stringResource(R.string.back)
-                                )
-                            }
-                        }
-                    },
-                    actions = {
-                        // Draft: mono "N files" inline in the app bar, with
-                        // a spinner while indexing runs.
+                OrgTopBar(
+                    title = stringResource(R.string.file_list_title),
+                    titleChip = if (uiState.isAtTreeRoot && uiState.currentDirectoryUri != null) {
+                        { OrgMonoChip(text = uiState.currentDirectoryUri!!.directoryLabel()) }
+                    } else null,
+                    onBack = if (uiState.canNavigateBack) {
+                        { viewModel.onBackButtonPressed() }
+                    } else null,
+                    backIcon = Icons.AutoMirrored.Filled.ArrowBack,
+                    monoTrailing = {
                         val indexRunning = uiState.isIndexRequestInFlight ||
                             uiState.indexStatus == FileIndexStatus.Running
                         Row(
@@ -136,7 +104,7 @@ fun FileListScreen(
                         ) {
                             if (indexRunning) {
                                 CircularProgressIndicator(
-                                    modifier = Modifier.size(14.dp),
+                                    modifier = Modifier.size(12.dp),
                                     strokeWidth = 2.dp
                                 )
                             }
@@ -147,42 +115,34 @@ fun FileListScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        IconButton(
-                            onClick = viewModel::requestGitSync,
+                    },
+                    actions = {
+                        OrgTopBarIcon(
+                            icon = Icons.Default.CloudSync,
+                            contentDescription = stringResource(R.string.git_sync_now),
                             enabled = uiState.gitSyncStatus !is GitSyncStatus.Running &&
-                                uiState.gitSyncStatus !is GitSyncStatus.Enqueued
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CloudSync,
-                                contentDescription = stringResource(R.string.git_sync_now)
-                            )
-                        }
-                        IconButton(
-                            onClick = viewModel::refreshIndex,
-                            enabled = !uiState.isIndexRequestInFlight
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Sync,
-                                contentDescription = stringResource(R.string.index_content)
-                            )
-                        }
-                        IconButton(onClick = viewModel::refreshCurrentLocation) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = stringResource(R.string.refresh)
-                            )
-                        }
+                                uiState.gitSyncStatus !is GitSyncStatus.Enqueued,
+                            onClick = viewModel::requestGitSync
+                        )
+                        OrgTopBarIcon(
+                            icon = Icons.Default.Sync,
+                            contentDescription = stringResource(R.string.index_content),
+                            enabled = !uiState.isIndexRequestInFlight,
+                            onClick = viewModel::refreshIndex
+                        )
+                        OrgTopBarIcon(
+                            icon = Icons.Default.Refresh,
+                            contentDescription = stringResource(R.string.refresh),
+                            onClick = viewModel::refreshCurrentLocation
+                        )
                     }
                 )
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Draft header: at root there is no breadcrumb row — the
-                    // repo chip in the title carries it. Inside a directory:
-                    // breadcrumb + (rare) git status chip on one line.
                     if (uiState.canNavigateBack) {
                         val crumbs = buildList {
                             uiState.pathHistory.firstOrNull()?.let {
@@ -211,41 +171,56 @@ fun FileListScreen(
                         }
                     }
 
-                    var searchActive by remember { mutableStateOf(false) }
+                    // Draft search row: a slim outlined field (NOT the M3
+                    // SearchBar pill) + the query-mode chip beside it.
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        SearchBar(
-                            query = uiState.searchQuery,
-                            onQueryChange = { viewModel.onSearchQueryChanged(it) },
-                            onSearch = { viewModel.onSearchQueryChanged(it) },
-                            active = searchActive,
-                            onActiveChange = { searchActive = it },
-                            placeholder = { Text(searchPlaceholder) },
-                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        OutlinedTextField(
+                            value = uiState.searchQuery,
+                            onValueChange = { viewModel.onSearchQueryChanged(it) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp),
+                            placeholder = {
+                                Text(
+                                    text = searchPlaceholder,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
                             trailingIcon = {
                                 if (uiState.searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
-                                        Icon(Icons.Default.Close, contentDescription = null)
-                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .clickable { viewModel.onSearchQueryChanged("") },
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
                             },
-                            windowInsets = WindowInsets(0),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            if (searchActive) {
-                                FileResultsList(
-                                    uiState = uiState,
-                                    viewModel = viewModel,
-                                    onFileSelected = onFileSelected
-                                )
-                            }
-                        }
+                            singleLine = true,
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer
+                            ),
+                            textStyle = MaterialTheme.typography.bodyMedium
+                        )
 
-                        // Draft CJK chip position carries the query-mode
-                        // toggle (本目录 ↔ 全库), replacing the old
-                        // segmented row that the draft doesn't have.
                         FilterChip(
                             selected = isFullText,
                             onClick = {
@@ -403,6 +378,9 @@ private fun FileResultsList(
                     modifier = Modifier.fillMaxWidth(),
                     colors = androidx.compose.material3.CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainer
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp, MaterialTheme.colorScheme.outlineVariant
                     )
                 ) {
                     Column {
@@ -500,10 +478,10 @@ fun FileItem(
                 }
                 Text(
                     text = listOfNotNull(
-                        shortDate.format(Date(file.lastModified)),
                         file.size.takeIf { it > 0 }?.let {
                             if (it >= 1024) "%.1f KB".format(it / 1024f) else "$it B"
-                        }
+                        },
+                        shortDate.format(Date(file.lastModified))
                     ).joinToString("  ·  "),
                     style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

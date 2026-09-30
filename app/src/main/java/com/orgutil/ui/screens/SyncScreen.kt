@@ -38,7 +38,13 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.orgutil.R
 import com.orgutil.domain.sync.GitSyncStatus
+import com.orgutil.ui.components.OrgTopBar
+import com.orgutil.ui.components.OrgTopBarIcon
+import com.orgutil.ui.components.OrgMonoChip
 import com.orgutil.ui.theme.LocalExtendedColors
+import com.orgutil.ui.components.OrgTopBar
+import com.orgutil.ui.components.OrgTopBarIcon
+import com.orgutil.ui.components.OrgMonoChip
 import com.orgutil.ui.theme.OrgMono
 import com.orgutil.ui.viewmodel.SyncViewModel
 import java.text.SimpleDateFormat
@@ -80,33 +86,25 @@ fun SyncScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
+            OrgTopBar(
+                title = stringResource(R.string.sync_title),
+                subtitle = if (uiState.remoteUrl.isNotBlank()) {
+                    {
                         Text(
-                            text = stringResource(R.string.sync_title),
-                            fontWeight = FontWeight.SemiBold
+                            text = uiState.remoteUrl,
+                            style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
                         )
-                        if (uiState.remoteUrl.isNotBlank()) {
-                            Text(
-                                text = uiState.remoteUrl,
-                                style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1
-                            )
-                        }
                     }
-                },
+                } else null,
                 actions = {
-                    IconButton(
-                        onClick = viewModel::requestSync,
-                        enabled = !uiState.isSyncRequestInFlight
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CloudSync,
-                            contentDescription = stringResource(R.string.sync_now)
-                        )
-                    }
+                    OrgTopBarIcon(
+                        icon = Icons.Default.CloudSync,
+                        contentDescription = stringResource(R.string.sync_now),
+                        enabled = !uiState.isSyncRequestInFlight,
+                        onClick = viewModel::requestSync
+                    )
                 }
             )
         }
@@ -410,7 +408,9 @@ private fun SyncHeroCard(
                                     .format(Date(uiState.lastSyncTime))
                             )
                         }
-                        uiState.snapshot?.let { append(" · ${it.ahead}↑ ${it.behind}↓") }
+                        uiState.snapshot?.let { snapshot ->
+                            append(" · ${snapshot.ahead + snapshot.behind} changes")
+                        }
                     }
                     if (meta.isNotBlank()) {
                         Text(

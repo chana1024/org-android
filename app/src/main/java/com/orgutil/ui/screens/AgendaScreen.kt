@@ -45,11 +45,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.orgutil.domain.agenda.OrgAgenda
 import com.orgutil.domain.agenda.OrgAgendaEntry
+import com.orgutil.ui.components.OrgTopBar
+import com.orgutil.ui.components.OrgTopBarIcon
+import com.orgutil.ui.components.OrgMonoChip
 import com.orgutil.ui.components.OrgStateChip
+import com.orgutil.ui.components.OrgTopBar
+import com.orgutil.ui.components.OrgTopBarIcon
+import com.orgutil.ui.components.OrgMonoChip
 import com.orgutil.ui.components.orgStateIsDone
+import com.orgutil.ui.components.OrgTopBar
+import com.orgutil.ui.components.OrgTopBarIcon
+import com.orgutil.ui.components.OrgMonoChip
 import com.orgutil.ui.components.PriorityChip
 import com.orgutil.ui.theme.OrgMono
 import com.orgutil.ui.viewmodel.AgendaUiState
@@ -75,27 +85,21 @@ fun AgendaScreen(
     Scaffold(
         topBar = {
             Column {
-                TopAppBar(
-                    title = {
-                        Column {
-                            Text(
-                                text = "GTD Agenda",
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = remember { LocalDate.now().format(HEADER_DATE) },
-                                style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                OrgTopBar(
+                    title = "GTD Agenda",
+                    subtitle = {
+                        Text(
+                            text = remember { LocalDate.now().format(HEADER_DATE) },
+                            style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     },
                     actions = {
-                        IconButton(onClick = viewModel::refresh) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Refresh agenda"
-                            )
-                        }
+                        OrgTopBarIcon(
+                            icon = Icons.Default.Refresh,
+                            contentDescription = "Refresh agenda",
+                            onClick = viewModel::refresh
+                        )
                     }
                 )
                 AgendaModePills(
@@ -316,10 +320,13 @@ private fun AgendaSectionCard(
         )
     ) {
         Column {
-            // Section header: chevron + bold small title + mono count
+            // Draft section header: tinted band, 12sp bold title
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .background(
+                        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f)
+                    )
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -332,8 +339,9 @@ private fun AgendaSectionCard(
                 )
                 Text(
                     text = section.title,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "${section.entries.size}",

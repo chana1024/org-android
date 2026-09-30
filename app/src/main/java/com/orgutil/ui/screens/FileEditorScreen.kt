@@ -24,6 +24,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.orgutil.R
+import com.orgutil.ui.components.OrgTopBar
+import com.orgutil.ui.components.OrgTopBarIcon
+import com.orgutil.ui.components.OrgMonoChip
 import com.orgutil.ui.components.OrgRenderer
 import com.orgutil.ui.theme.OrgMono
 import com.orgutil.ui.viewmodel.FileEditorViewModel
@@ -90,8 +93,9 @@ fun FileEditorScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
+            OrgTopBar(
+                title = "",
+                titleContent = {
                     // Draft breadcrumb title: dim directory + bold mono file name
                     val fileName = uiState.document?.fileName ?: "Loading..."
                     val dir = fileName.substringBeforeLast('/', "")
@@ -114,14 +118,8 @@ fun FileEditorScreen(
                         )
                     }
                 },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
-                    }
-                },
+                onBack = onNavigateBack,
+                backIcon = Icons.AutoMirrored.Filled.ArrowBack,
                 actions = {
                     // Global fold/unfold button (only show in view mode with content)
                     if (uiState.document != null && !uiState.isLoading && uiState.isInViewMode) {

@@ -84,7 +84,7 @@ fun MainScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(60.dp)
+                            .height(64.dp)
                     ) {
                         tabs.forEachIndexed { index, tab ->
                             val active = selectedTabIndex == index
