@@ -9,7 +9,9 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.EventNote
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -22,6 +24,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
+import com.orgutil.R
 
 private data class MainTab(
     val label: String,
@@ -55,6 +59,16 @@ fun MainScreen(
                     )
                 }
             }
+        },
+        // Quick capture is global ("OrgUtil Teal Light"): one teal FAB
+        // above the nav bar instead of a per-screen button.
+        floatingActionButton = {
+            FloatingActionButton(onClick = onNavigateToCapture) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = stringResource(R.string.quick_capture)
+                )
+            }
         }
     ) { paddingValues ->
         Box(
@@ -64,10 +78,7 @@ fun MainScreen(
         ) {
             when (selectedTabIndex) {
                 0 -> AgendaScreen(onFileSelected = onFileSelected)
-                1 -> FileListScreen(
-                    onFileSelected = onFileSelected,
-                    onNavigateToCapture = onNavigateToCapture
-                )
+                1 -> FileListScreen(onFileSelected = onFileSelected)
                 2 -> FavoritesScreen(onFileSelected = onFileSelected)
                 3 -> SyncScreen()
                 4 -> ChatScreen()

@@ -84,6 +84,18 @@ class FileListViewModel @Inject constructor(
         return true
     }
 
+    /**
+     * Breadcrumb navigation: crumb [index] is an ancestor in
+     * [FileListUiState.pathHistory] (0 = repository root). Jumping there
+     * makes the crumbs before it the new history — tapping the root
+     * collapses to an empty history, same as [onDocumentTreeSelected].
+     */
+    fun onBreadcrumbSegmentSelected(index: Int) {
+        val history = _uiState.value.pathHistory
+        if (index < 0 || index >= history.size) return
+        navigateTo(history[index], history.subList(0, index))
+    }
+
     fun onDocumentTreeSelected(uri: Uri) {
         safeLogD("FileListViewModel", "Document tree selected: $uri")
         storeDocumentTreeUseCase(uri)

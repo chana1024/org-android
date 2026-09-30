@@ -13,7 +13,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Folder
@@ -32,9 +31,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import android.provider.DocumentsContract
 import com.orgutil.R
-import com.orgutil.domain.indexing.FileIndexStatus
 import com.orgutil.domain.model.OrgFileInfo
+import com.orgutil.ui.components.BreadcrumbCrumb
+import com.orgutil.ui.components.BreadcrumbRow
+import com.orgutil.ui.components.GitSyncStatusChip
+import com.orgutil.ui.components.IndexStatusChip
 import com.orgutil.domain.sync.GitSyncStatus
 import com.orgutil.ui.viewmodel.FileListQueryMode
 import com.orgutil.ui.viewmodel.FileListUiState
@@ -46,7 +49,6 @@ import java.util.*
 @Composable
 fun FileListScreen(
     onFileSelected: (Uri, Int?, Int?, String?) -> Unit,
-    onNavigateToCapture: () -> Unit,
     viewModel: FileListViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -132,6 +134,32 @@ fun FileListScreen(
                         .padding(horizontal = 12.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    // 面包屑：根目录一段始终可点（teal），当前目录加粗，
+                    // ‹ 与顶栏返回箭头、系统返回手势走同一条弹出路径。
+                    val crumbs = buildList {
+                        uiState.pathHistory.firstOrNull()?.let {
+                            add(BreadcrumbCrumb(label = it.directoryLabel(), isRoot = true))
+                        }
+                        uiState.pathHistory.drop(1).forEach {
+                            add(BreadcrumbCrumb(label = it.directoryLabel()))
+                        }
+                        uiState.currentDirectoryUri?.let {
+                            add(
+                                BreadcrumbCrumb(
+                                    label = it.directoryLabel(),
+                                    isRoot = uiState.pathHistory.isEmpty()
+                                )
+                            )
+                        }
+                    }
+                    BreadcrumbRow(
+                        crumbs = crumbs,
+                        onCrumbSelected = viewModel::onBreadcrumbSegmentSelected,
+                        onUp = if (uiState.canNavigateBack) {
+                            { viewModel.onBackButtonPressed() }
+                        } else null
+                    )
+
                     var searchActive by remember { mutableStateOf(false) }
                     SearchBar(
                         query = uiState.searchQuery,
@@ -179,7 +207,7 @@ fun FileListScreen(
                                 label = { Text(stringResource(R.string.search_mode_full_text)) }
                             )
                         }
-                        IndexStatusMonitor(
+                        IndexStatusChip(
                             status = uiState.indexStatus,
                             isRequestInFlight = uiState.isIndexRequestInFlight
                         )
@@ -187,43 +215,20 @@ fun FileListScreen(
                     if (uiState.gitSyncStatus != GitSyncStatus.Idle) {
                         GitSyncStatusChip(status = uiState.gitSyncStatus)
                     }
-                    if (uiState.isBrowsingDirectory && !uiState.isAtTreeRoot) {
-                        Text(
-                            text = stringResource(R.string.search_mode_hint_directory),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
                 }
             }
         },
         floatingActionButton = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                horizontalAlignment = Alignment.End
+            // 文件夹选择（根目录切换）。快速捕获的 FAB 移到了主屏 Scaffold。
+            FloatingActionButton(
+                onClick = {
+                    documentTreeLauncher.launch(null)
+                }
             ) {
-                // Quick capture button
-                FloatingActionButton(
-                    onClick = onNavigateToCapture,
-                    containerColor = MaterialTheme.colorScheme.secondary
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = stringResource(R.string.quick_capture)
-                    )
-                }
-                
-                // Folder selector button
-                FloatingActionButton(
-                    onClick = {
-                        documentTreeLauncher.launch(null)
-                    }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Folder,
-                        contentDescription = stringResource(R.string.select_documents_folder)
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.Folder,
+                    contentDescription = stringResource(R.string.select_documents_folder)
+                )
             }
         }
     ) { paddingValues ->
@@ -302,66 +307,6 @@ fun FileListScreen(
             }
         }
     }
-}
-
-@Composable
-private fun IndexStatusMonitor(
-    status: FileIndexStatus,
-    isRequestInFlight: Boolean
-) {
-    val text = when (status) {
-        FileIndexStatus.Idle -> stringResource(R.string.index_status_idle)
-        FileIndexStatus.Enqueued -> stringResource(R.string.index_status_queued)
-        FileIndexStatus.Running -> stringResource(R.string.index_status_running)
-        FileIndexStatus.Succeeded -> stringResource(R.string.index_status_succeeded)
-        is FileIndexStatus.Failed -> stringResource(R.string.index_status_failed, status.message)
-    }
-
-    AssistChip(
-        onClick = {},
-        enabled = false,
-        label = { Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        leadingIcon = {
-            if (isRequestInFlight || status == FileIndexStatus.Running) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
-                    strokeWidth = 2.dp
-                )
-            }
-        }
-    )
-}
-
-@Composable
-private fun GitSyncStatusChip(status: GitSyncStatus) {
-    val text = when (status) {
-        GitSyncStatus.Idle -> stringResource(R.string.git_sync_status_idle)
-        GitSyncStatus.Enqueued -> stringResource(R.string.git_sync_status_queued)
-        is GitSyncStatus.Running -> stringResource(R.string.git_sync_status_running)
-        is GitSyncStatus.Succeeded -> stringResource(
-            R.string.git_sync_status_succeeded,
-            SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(status.at))
-        )
-        is GitSyncStatus.Conflict ->
-            stringResource(R.string.git_sync_status_conflict, status.files.size)
-        is GitSyncStatus.Failed ->
-            stringResource(R.string.git_sync_status_failed, status.message)
-    }
-    val isBusy = status is GitSyncStatus.Running || status is GitSyncStatus.Enqueued
-
-    AssistChip(
-        onClick = {},
-        enabled = false,
-        label = { Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        leadingIcon = {
-            if (isBusy) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
-                    strokeWidth = 2.dp
-                )
-            }
-        }
-    )
 }
 
 @Composable
@@ -551,4 +496,27 @@ private fun OrgFileInfo.highlightedSearchPreview() = buildAnnotatedString {
         append(preview.substring(start, end))
     }
     append(preview.substring(end))
+}
+
+/**
+ * Short display name for a SAF directory Uri: the document id's last
+ * path segment ("primary:org/gtd" -> "gtd"); falls back to the Uri's
+ * lastPathSegment, then "~". Navigation is by Uri, never by this name.
+ */
+private fun Uri.directoryLabel(): String {
+    val documentId = try {
+        DocumentsContract.getDocumentId(this)
+    } catch (_: IllegalArgumentException) {
+        try {
+            DocumentsContract.getTreeDocumentId(this)
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+    }
+    return documentId
+        ?.substringAfterLast(':')
+        ?.substringAfterLast('/')
+        ?.takeIf { it.isNotBlank() }
+        ?: lastPathSegment?.substringAfterLast('/')
+        ?: "~"
 }

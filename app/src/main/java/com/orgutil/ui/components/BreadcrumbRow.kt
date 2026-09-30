@@ -54,8 +54,8 @@ fun BreadcrumbRow(
         crumbs.forEachIndexed { index, crumb ->
             val isCurrent = index == crumbs.lastIndex
             val color = when {
-                isCurrent -> MaterialTheme.colorScheme.onSurface
                 crumb.isRoot -> MaterialTheme.colorScheme.primary
+                isCurrent -> MaterialTheme.colorScheme.onSurface
                 else -> MaterialTheme.colorScheme.onSurfaceVariant
             }
             Text(
