@@ -63,6 +63,7 @@ import com.orgutil.domain.chat.AgentMode
 import com.orgutil.domain.chat.ApprovalState
 import com.orgutil.domain.chat.ChatMessageView
 import com.orgutil.domain.chat.RiskLevel
+import com.orgutil.ui.theme.OrgMono
 import com.orgutil.ui.viewmodel.ChatViewModel
 import com.orgutil.ui.viewmodel.ChatUiState
 
@@ -379,7 +380,7 @@ private fun ToolCallCard(message: ChatMessageView) {
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = message.toolName ?: "tool",
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.titleSmall.copy(fontFamily = OrgMono),
                     fontWeight = FontWeight.Medium
                 )
             }

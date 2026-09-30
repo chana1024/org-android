@@ -28,6 +28,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.orgutil.R
 import com.orgutil.domain.sync.GitSyncStatus
+import com.orgutil.ui.theme.OrgMono
 import com.orgutil.ui.viewmodel.SyncViewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -162,7 +163,7 @@ fun SyncScreen(
                 Text(
                     text = uiState.resolvedRepoRoot
                         ?: stringResource(R.string.sync_repo_not_found),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = OrgMono),
                     color = if (uiState.resolvedRepoRoot != null) {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     } else {

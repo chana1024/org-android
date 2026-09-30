@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.orgutil.R
 import com.orgutil.ui.components.OrgRenderer
+import com.orgutil.ui.theme.OrgMono
 import com.orgutil.ui.viewmodel.FileEditorViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -227,6 +228,9 @@ fun FileEditorScreen(
                                     .focusRequester(editorFocusRequester),
                                 label = { Text("Content") },
                                 placeholder = { Text("Enter your org-mode content here...") },
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                    fontFamily = OrgMono
+                                ),
                                 maxLines = Int.MAX_VALUE,
                                 singleLine = false
                             )

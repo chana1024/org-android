@@ -45,6 +45,7 @@ import com.orgutil.ui.components.PriorityChip
 import com.orgutil.ui.components.SectionCard
 import com.orgutil.ui.components.SectionHeader
 import com.orgutil.domain.agenda.OrgAgendaEntry
+import com.orgutil.ui.theme.OrgMono
 import com.orgutil.ui.viewmodel.AgendaUiState
 import com.orgutil.ui.viewmodel.AgendaViewMode
 import com.orgutil.ui.viewmodel.AgendaViewModel
@@ -242,7 +243,7 @@ private fun AgendaEntryCard(
                 Text(
                     text = entry.parentTitles.joinToString(" > "),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -254,7 +255,7 @@ private fun AgendaEntryCard(
             if (detailText.isNotBlank()) {
                 Text(
                     text = detailText,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = OrgMono),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
