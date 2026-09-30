@@ -389,7 +389,6 @@ fun FileItem(
     onClick: () -> Unit,
     onFavoriteToggle: () -> Unit = {}
 ) {
-    val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()) }
     val hasSearchPreview = !file.searchPreview.isNullOrBlank()
 
     if (hasSearchPreview) {
@@ -405,18 +404,18 @@ fun FileItem(
         return
     }
 
-    // Draft row: leading icon in a bordered box, mono filename, mono
+    // Draft row: leading icon in a bordered box, mono filename, short mono
     // metadata, star favorite / directory chevron at the right.
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Surface(
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             border = androidx.compose.foundation.BorderStroke(
                 1.dp, MaterialTheme.colorScheme.outlineVariant
@@ -428,8 +427,8 @@ fun FileItem(
                 tint = if (file.isDirectory) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
-                    .padding(6.dp)
-                    .size(20.dp)
+                    .padding(4.dp)
+                    .size(16.dp)
             )
         }
         Column(modifier = Modifier.weight(1f)) {
@@ -447,24 +446,27 @@ fun FileItem(
                         imageVector = Icons.Default.Star,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(13.dp)
                     )
                 }
             }
-            Text(
-                text = if (file.isDirectory) {
-                    stringResource(R.string.search_mode_hint_directory)
-                } else {
-                    listOfNotNull(
-                        dateFormat.format(Date(file.lastModified)),
-                        file.size.takeIf { it > 0 }?.let { "$it bytes" }
-                    ).joinToString("  ·  ")
-                },
-                style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            if (!file.isDirectory) {
+                val shortDate = remember {
+                    SimpleDateFormat("MMM dd", Locale.getDefault())
+                }
+                Text(
+                    text = listOfNotNull(
+                        shortDate.format(Date(file.lastModified)),
+                        file.size.takeIf { it > 0 }?.let {
+                            if (it >= 1024) "%.1f KB".format(it / 1024f) else "$it B"
+                        }
+                    ).joinToString("  ·  "),
+                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
         if (file.isDirectory) {
             Icon(
@@ -473,11 +475,12 @@ fun FileItem(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         } else {
-            IconButton(onClick = onFavoriteToggle) {
+            IconButton(onClick = onFavoriteToggle, modifier = Modifier.size(32.dp)) {
                 Icon(
                     imageVector = if (file.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
                     contentDescription = if (file.isFavorite) stringResource(R.string.remove_from_favorites) else stringResource(R.string.add_to_favorites),
-                    tint = if (file.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = if (file.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
