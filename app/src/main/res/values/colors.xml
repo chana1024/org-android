@@ -55,17 +55,21 @@
     <color name="md_theme_dark_surfaceVariant">#49454F</color>
     <color name="md_theme_dark_onSurfaceVariant">#CAC4D0</color>
     
-    <!-- Widget Colors - Modern Dark Theme -->
-    <color name="widget_background">#FF2A2D30</color>
-    <color name="widget_background_light">#FF373B40</color>
-    <color name="widget_border">#FF404448</color>
-    <color name="widget_input_background">#FF323639</color>
-    <color name="widget_input_border">#FF484C52</color>
-    <color name="widget_text_primary">#FFFFFFFF</color>
-    <color name="widget_text_secondary">#FFBDC3C7</color>
-    <color name="widget_text_hint">#FF8B9297</color>
-    <color name="widget_button_normal">#FF4A90E2</color>
-    <color name="widget_button_pressed">#FF357ABD</color>
-    <color name="widget_button_success">#FF5CB85C</color>
-    <color name="widget_shadow">#80000000</color>
+    <!-- OrgUtil Teal Light (launch window + widget) -->
+    <color name="orgutil_teal">#FF2AA198</color>
+    <color name="orgutil_teal_dark">#FF1F8177</color>
+
+    <!-- Widget Colors - OrgUtil Teal Light -->
+    <color name="widget_background">#FFFFFFFF</color>
+    <color name="widget_background_light">#FFF4F3F2</color>
+    <color name="widget_border">#FFB0B2B0</color>
+    <color name="widget_input_background">#FFF4F3F2</color>
+    <color name="widget_input_border">#FFB0B2B0</color>
+    <color name="widget_text_primary">#FF303332</color>
+    <color name="widget_text_secondary">#FF5C605E</color>
+    <color name="widget_text_hint">#FF787B79</color>
+    <color name="widget_button_normal">#FF2AA198</color>
+    <color name="widget_button_pressed">#FF1F8177</color>
+    <color name="widget_button_success">#FF216C29</color>
+    <color name="widget_shadow">#33000000</color>
 </resources>

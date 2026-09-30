@@ -3,6 +3,7 @@ package com.orgutil
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -22,7 +23,18 @@ import dagger.hilt.android.AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // The UI is forced light (OrgUtil Teal Light), so the system bars
+        // must be locked to light style too — the auto-detecting overload
+        // follows the system dark setting and would put light icons on the
+        // light bar for dark-system users.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(
+                android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT
+            ),
+            navigationBarStyle = SystemBarStyle.light(
+                android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT
+            )
+        )
         
         val navigateTo = intent.getStringExtra("navigate_to")
         
