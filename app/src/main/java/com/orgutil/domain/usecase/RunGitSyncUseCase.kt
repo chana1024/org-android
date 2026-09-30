@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Environment
 import androidx.core.content.ContextCompat
+import com.orgutil.domain.files.OrgFileChangeNotifier
 import com.orgutil.domain.repository.GitSyncRepository
 import com.orgutil.domain.sync.GitSyncOutcome
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -17,7 +18,8 @@ import javax.inject.Inject
  */
 class RunGitSyncUseCase @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val gitSyncRepository: GitSyncRepository
+    private val gitSyncRepository: GitSyncRepository,
+    private val fileChangeNotifier: OrgFileChangeNotifier
 ) {
     suspend operator fun invoke(): Result<GitSyncOutcome> {
         if (!hasStorageAccess()) {
@@ -28,6 +30,7 @@ class RunGitSyncUseCase @Inject constructor(
             )
         }
         return gitSyncRepository.runSync()
+            .onSuccess { fileChangeNotifier.notifyChanged() }
     }
 
     private fun hasStorageAccess(): Boolean {

@@ -32,6 +32,13 @@ data class FileListUiState(
     val isBrowsingDirectory: Boolean
         get() = currentDirectory != null
 
+    /**
+     * 是否位于所选文档树的根部。根部时全库搜索不被目录过滤，
+     * “仅文件夹过滤”提示只在真正的子目录里才有意义。
+     */
+    val isAtTreeRoot: Boolean
+        get() = pathHistory.isEmpty()
+
     /** 是否在查全文索引 */
     val isFullTextMode: Boolean
         get() = queryMode == FileListQueryMode.FULL_TEXT

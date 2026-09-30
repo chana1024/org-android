@@ -14,6 +14,7 @@ import com.orgutil.domain.indexing.FileIndexScheduler
 import com.orgutil.domain.indexing.FileIndexStatus
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -58,20 +59,60 @@ class WorkManagerFileIndexScheduler internal constructor(
     }
 
     override fun observeIndexing(): Flow<FileIndexStatus> {
-        return workManagerGateway.observeUniqueWork(UNIQUE_WORK_NAME)
+        // Both chains index the same data: the one-time chain serves explicit
+        // refreshes, the periodic chain re-indexes every 15 minutes. A
+        // success in either means the index is usable, so the monitor must
+        // watch both - otherwise an old one-time failure keeps showing
+        // "Indexing failed" while the periodic chain keeps the index fresh.
+        val oneTimeStatus = workManagerGateway.observeUniqueWork(UNIQUE_WORK_NAME)
             .map { workInfos -> workInfos.toFileIndexStatus() }
+        // A periodic chain rests in ENQUEUED between its 15-minute runs (it
+        // never ends up in a terminal state), so ENQUEUED is its idle state
+        // here - only RUNNING and terminal outcomes are meaningful.
+        val periodicStatus = workManagerGateway.observeUniqueWork(UNIQUE_PERIODIC_WORK_NAME)
+            .map { workInfos -> workInfos.toFileIndexStatus() }
+            .map { status ->
+                if (status == FileIndexStatus.Enqueued) FileIndexStatus.Idle else status
+            }
+        return combine(oneTimeStatus, periodicStatus, ::mergeStatus)
     }
 
+    /**
+     * Maps one unique work chain to the status of its LATEST record.
+     *
+     * getWorkInfosForUniqueWorkFlow returns the chain's full history (terminal
+     * records survive until pruned). Aggregating with `any { FAILED }` lets a
+     * stale failure permanently mask newer successes - the "Indexing failed"
+     * chip that never clears. WorkInfo records arrive in insertion order, so
+     * the last element is the most recent run and is the only one that
+     * reflects the current state of the index.
+     */
     private fun List<WorkInfo>.toFileIndexStatus(): FileIndexStatus {
-        if (isEmpty()) return FileIndexStatus.Idle
-        return when {
-            any { it.state == WorkInfo.State.RUNNING } -> FileIndexStatus.Running
-            any { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED } -> FileIndexStatus.Enqueued
-            any { it.state == WorkInfo.State.FAILED } -> FileIndexStatus.Failed("Indexing failed")
-            any { it.state == WorkInfo.State.CANCELLED } -> FileIndexStatus.Failed("Indexing cancelled")
-            any { it.state == WorkInfo.State.SUCCEEDED } -> FileIndexStatus.Succeeded
-            else -> FileIndexStatus.Idle
+        return when (lastOrNull()?.state) {
+            WorkInfo.State.RUNNING -> FileIndexStatus.Running
+            WorkInfo.State.ENQUEUED,
+            WorkInfo.State.BLOCKED -> FileIndexStatus.Enqueued
+            WorkInfo.State.FAILED -> FileIndexStatus.Failed("Indexing failed")
+            WorkInfo.State.CANCELLED -> FileIndexStatus.Failed("Indexing cancelled")
+            WorkInfo.State.SUCCEEDED -> FileIndexStatus.Succeeded
+            null -> FileIndexStatus.Idle
         }
+    }
+
+    /** Active work wins; past that, a success anywhere means the index is usable. */
+    private fun mergeStatus(oneTime: FileIndexStatus, periodic: FileIndexStatus): FileIndexStatus {
+        if (oneTime == FileIndexStatus.Running || periodic == FileIndexStatus.Running) {
+            return FileIndexStatus.Running
+        }
+        if (oneTime == FileIndexStatus.Enqueued) {
+            return FileIndexStatus.Enqueued
+        }
+        if (oneTime == FileIndexStatus.Succeeded || periodic == FileIndexStatus.Succeeded) {
+            return FileIndexStatus.Succeeded
+        }
+        if (oneTime is FileIndexStatus.Failed) return oneTime
+        if (periodic is FileIndexStatus.Failed) return periodic
+        return FileIndexStatus.Idle
     }
 
     companion object {

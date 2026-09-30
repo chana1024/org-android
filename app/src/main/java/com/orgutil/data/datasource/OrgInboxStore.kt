@@ -3,6 +3,7 @@ package com.orgutil.data.datasource
 import android.content.Context
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
+import com.orgutil.domain.files.OrgFileChangeNotifier
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -16,7 +17,8 @@ import javax.inject.Singleton
 @Singleton
 class OrgInboxStore @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val documentTreeStore: DocumentTreeStore
+    private val documentTreeStore: DocumentTreeStore,
+    private val fileChangeNotifier: OrgFileChangeNotifier
 ) {
     suspend fun append(content: String) = withContext(Dispatchers.IO) {
         val rootDocumentFile = documentTreeStore.requireTreeDocumentFile()
@@ -27,6 +29,7 @@ class OrgInboxStore @Inject constructor(
         val inboxFile = findOrCreateInboxFile(rootDocumentFile)
         val existingContent = readFile(inboxFile.uri)
         writeFile(inboxFile.uri, existingContent + content)
+        fileChangeNotifier.notifyChanged()
     }
 
     suspend fun size(): Long = withContext(Dispatchers.IO) {

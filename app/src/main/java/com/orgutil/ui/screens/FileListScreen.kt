@@ -3,18 +3,22 @@ package com.orgutil.ui.screens
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
@@ -33,11 +37,12 @@ import com.orgutil.domain.indexing.FileIndexStatus
 import com.orgutil.domain.model.OrgFileInfo
 import com.orgutil.domain.sync.GitSyncStatus
 import com.orgutil.ui.viewmodel.FileListQueryMode
+import com.orgutil.ui.viewmodel.FileListUiState
 import com.orgutil.ui.viewmodel.FileListViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun FileListScreen(
     onFileSelected: (Uri, Int?, Int?, String?) -> Unit,
@@ -47,10 +52,6 @@ fun FileListScreen(
     val uiState by viewModel.uiState.collectAsState()
     val isFullText = uiState.isFullTextMode
 
-    val searchLabel = if (isFullText)
-        stringResource(R.string.search_label_global_search)
-    else
-        stringResource(R.string.search_label_global_list)
     val searchPlaceholder = if (isFullText)
         stringResource(R.string.search_placeholder_global_search)
     else
@@ -72,9 +73,20 @@ fun FileListScreen(
         topBar = {
             Column {
                 TopAppBar(
-                    title = { 
-                        val title = uiState.currentDirectory?.name ?: stringResource(R.string.file_list_title)
-                        Text(text = title)
+                    title = {
+                        // 根目录显示固定标题；子目录才显示文件夹名，
+                        // 避免 “primary:orgroot” 这类 URI 片段占位。
+                        val title = if (uiState.isAtTreeRoot) {
+                            stringResource(R.string.file_list_title)
+                        } else {
+                            uiState.currentDirectory?.name
+                                ?: stringResource(R.string.file_list_title)
+                        }
+                        Text(
+                            text = title,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     },
                     navigationIcon = {
                         if (uiState.canNavigateBack) {
@@ -117,41 +129,65 @@ fun FileListScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    OutlinedTextField(
-                        value = uiState.searchQuery,
-                        onValueChange = { viewModel.onSearchQueryChanged(it) },
-                        label = { Text(searchLabel) },
+                    var searchActive by remember { mutableStateOf(false) }
+                    SearchBar(
+                        query = uiState.searchQuery,
+                        onQueryChange = { viewModel.onSearchQueryChanged(it) },
+                        onSearch = { viewModel.onSearchQueryChanged(it) },
+                        active = searchActive,
+                        onActiveChange = { searchActive = it },
                         placeholder = { Text(searchPlaceholder) },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = {
+                            if (uiState.searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
+                                    Icon(Icons.Default.Close, contentDescription = null)
+                                }
+                            }
+                        },
+                        windowInsets = WindowInsets(0)
+                    ) {
+                        if (searchActive) {
+                            FileResultsList(
+                                uiState = uiState,
+                                viewModel = viewModel,
+                                onFileSelected = onFileSelected
+                            )
+                        }
+                    }
 
+                    // 模式切换和索引状态合并到一行，Git 状态只在非空闲时
+                    // 出现（空闲状态不携带信息），为文件列表留出更多空间。
                     Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        FilterChip(
-                            selected = !isFullText,
-                            onClick = {
-                                if (isFullText) viewModel.setSearchMode(FileListQueryMode.FILE_LIST)
-                            },
-                            label = { Text(stringResource(R.string.search_mode_file_list)) }
-                        )
-                        FilterChip(
-                            selected = isFullText,
-                            onClick = {
-                                if (!isFullText) viewModel.setSearchMode(FileListQueryMode.FULL_TEXT)
-                            },
-                            label = { Text(stringResource(R.string.search_mode_full_text)) }
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
+                            SegmentedButton(
+                                selected = !isFullText,
+                                onClick = { viewModel.setSearchMode(FileListQueryMode.FILE_LIST) },
+                                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                                label = { Text(stringResource(R.string.search_mode_file_list)) }
+                            )
+                            SegmentedButton(
+                                selected = isFullText,
+                                onClick = { viewModel.setSearchMode(FileListQueryMode.FULL_TEXT) },
+                                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                                label = { Text(stringResource(R.string.search_mode_full_text)) }
+                            )
+                        }
+                        IndexStatusMonitor(
+                            status = uiState.indexStatus,
+                            isRequestInFlight = uiState.isIndexRequestInFlight
                         )
                     }
-                    IndexStatusMonitor(
-                        status = uiState.indexStatus,
-                        isRequestInFlight = uiState.isIndexRequestInFlight
-                    )
-                    GitSyncStatusChip(status = uiState.gitSyncStatus)
-                    if (uiState.isBrowsingDirectory) {
+                    if (uiState.gitSyncStatus != GitSyncStatus.Idle) {
+                        GitSyncStatusChip(status = uiState.gitSyncStatus)
+                    }
+                    if (uiState.isBrowsingDirectory && !uiState.isAtTreeRoot) {
                         Text(
                             text = stringResource(R.string.search_mode_hint_directory),
                             style = MaterialTheme.typography.bodySmall,
@@ -198,7 +234,7 @@ fun FileListScreen(
         ) {
             when {
                 uiState.isLoading -> {
-                    CircularProgressIndicator(
+                    LoadingIndicator(
                         modifier = Modifier.align(Alignment.Center)
                     )
                 }
@@ -257,30 +293,11 @@ fun FileListScreen(
                 }
                 
                 else -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(uiState.files) { file ->
-                            FileItem(
-                                file = file,
-                                onClick = { 
-                                    if (file.isDirectory) {
-                                        viewModel.onDirectoryClicked(file)
-                                    } else {
-                                        onFileSelected(
-                                            file.uri,
-                                            file.searchMatchContentOffset,
-                                            file.searchPreviewMatchLength,
-                                            uiState.searchQuery.takeIf { file.searchPreview != null }
-                                        )
-                                    }
-                                },
-                                onFavoriteToggle = { viewModel.toggleFavorite(file) }
-                            )
-                        }
-                    }
+                    FileResultsList(
+                        uiState = uiState,
+                        viewModel = viewModel,
+                        onFileSelected = onFileSelected
+                    )
                 }
             }
         }
@@ -303,7 +320,7 @@ private fun IndexStatusMonitor(
     AssistChip(
         onClick = {},
         enabled = false,
-        label = { Text(text) },
+        label = { Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         leadingIcon = {
             if (isRequestInFlight || status == FileIndexStatus.Running) {
                 CircularProgressIndicator(
@@ -347,6 +364,38 @@ private fun GitSyncStatusChip(status: GitSyncStatus) {
     )
 }
 
+@Composable
+private fun FileResultsList(
+    uiState: FileListUiState,
+    viewModel: FileListViewModel,
+    onFileSelected: (Uri, Int?, Int?, String?) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        items(uiState.files) { file ->
+            FileItem(
+                file = file,
+                onClick = {
+                    if (file.isDirectory) {
+                        viewModel.onDirectoryClicked(file)
+                    } else {
+                        onFileSelected(
+                            file.uri,
+                            file.searchMatchContentOffset,
+                            file.searchPreviewMatchLength,
+                            uiState.searchQuery.takeIf { file.searchPreview != null }
+                        )
+                    }
+                },
+                onFavoriteToggle = { viewModel.toggleFavorite(file) }
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileItem(
@@ -356,68 +405,61 @@ fun FileItem(
 ) {
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()) }
     val hasSearchPreview = !file.searchPreview.isNullOrBlank()
-    
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        if (hasSearchPreview) {
+
+    if (hasSearchPreview) {
+        Card(
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth()
+        ) {
             SearchResultFileItem(
                 file = file,
                 onFavoriteToggle = onFavoriteToggle
             )
-            return@Card
         }
+        return
+    }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (file.isDirectory) {
-                Icon(
-                    imageVector = Icons.Default.Folder,
-                    contentDescription = "Directory",
-                    modifier = Modifier.size(40.dp).padding(end = 16.dp)
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Default.Description, // Or some other file icon
-                    contentDescription = "File",
-                    modifier = Modifier.size(40.dp).padding(end = 16.dp)
-                )
-            }
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
+    ListItem(
+        headlineContent = {
+            Text(
+                text = file.name,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        },
+        supportingContent = if (file.isDirectory) {
+            null
+        } else {
+            {
                 Text(
-                    text = file.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    text = listOfNotNull(
+                        dateFormat.format(Date(file.lastModified)),
+                        file.size.takeIf { it > 0 }?.let { "$it bytes" }
+                    ).joinToString("  ·  "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                
-                Spacer(modifier = Modifier.height(4.dp))
-                
-                if (!file.isDirectory) {
-                    Text(
-                        text = dateFormat.format(Date(file.lastModified)),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    
-                    if (file.size > 0) {
-                        Text(
-                            text = "${file.size} bytes",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
             }
-            
-            if (!file.isDirectory) {
+        },
+        leadingContent = {
+            Icon(
+                imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.Default.Description,
+                contentDescription = if (file.isDirectory) "Directory" else "File",
+                tint = if (file.isDirectory) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        trailingContent = if (file.isDirectory) {
+            {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            {
                 IconButton(onClick = onFavoriteToggle) {
                     Icon(
                         imageVector = if (file.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
@@ -426,8 +468,16 @@ fun FileItem(
                     )
                 }
             }
-        }
-    }
+        },
+        colors = if (file.isDirectory) {
+            ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        } else {
+            ListItemDefaults.colors()
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    )
 }
 
 @Composable

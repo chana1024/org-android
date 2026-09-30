@@ -5,15 +5,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.orgutil.ui.theme.LocalExtendedColors
 import com.orgutil.ui.viewmodel.CaptureViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -171,9 +173,10 @@ fun CaptureScreen(
                     // 状态信息
                     when {
                         uiState.successMessage != null -> {
+                            val extended = LocalExtendedColors.current
                             Card(
                                 colors = CardDefaults.cardColors(
-                                    containerColor = Color(0xFF4CAF50).copy(alpha = 0.1f)
+                                    containerColor = extended.successContainer
                                 ),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
@@ -183,23 +186,24 @@ fun CaptureScreen(
                                         .padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = "✅",
-                                        fontSize = 16.sp
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = extended.success
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    uiState.successMessage?.let{ message ->
+                                    uiState.successMessage?.let { message ->
                                         Text(
                                             text = message,
                                             style = MaterialTheme.typography.bodyMedium,
-                                            color = Color(0xFF2E7D32),
+                                            color = extended.onSuccessContainer,
                                             fontWeight = FontWeight.Medium
                                         )
                                     }
                                 }
                             }
                         }
-                        
+
                         uiState.error != null -> {
                             Card(
                                 colors = CardDefaults.cardColors(
@@ -213,12 +217,13 @@ fun CaptureScreen(
                                         .padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = "❌",
-                                        fontSize = 16.sp
+                                    Icon(
+                                        imageVector = Icons.Default.ErrorOutline,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    uiState.error?.let{error->
+                                    uiState.error?.let { error ->
                                         Text(
                                             text = error,
                                             style = MaterialTheme.typography.bodyMedium,

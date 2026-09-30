@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,23 +18,34 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.outlined.HourglassTop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -54,6 +66,7 @@ import com.orgutil.domain.chat.RiskLevel
 import com.orgutil.ui.viewmodel.ChatViewModel
 import com.orgutil.ui.viewmodel.ChatUiState
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(viewModel: ChatViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
@@ -68,35 +81,50 @@ fun ChatScreen(viewModel: ChatViewModel = hiltViewModel()) {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        // ---- mode selector + AUTO banner ----
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
-                SegmentedButton(
-                    selected = uiState.mode == AgentMode.APPROVAL,
-                    onClick = { viewModel.switchMode(AgentMode.APPROVAL, autoArmed = false) },
-                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-                ) { Text("审批") }
-                SegmentedButton(
-                    selected = uiState.mode == AgentMode.AUTO,
-                    onClick = {
-                        if (uiState.mode != AgentMode.AUTO) showAutoArmDialog = true
-                    },
-                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-                ) { Text("全自动") }
-            }
-            IconButton(onClick = { showApiKeyDialog = true }) {
-                Text(
-                    text = if (uiState.apiKeyConfigured) "🔑" else "🔑?",
-                    style = MaterialTheme.typography.titleMedium
-                )
-            }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Chat") },
+                actions = {
+                    IconButton(onClick = { showApiKeyDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Key,
+                            contentDescription = "LLM API Key",
+                            tint = if (uiState.apiKeyConfigured) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            )
         }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // ---- mode selector ----
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
+                    SegmentedButton(
+                        selected = uiState.mode == AgentMode.APPROVAL,
+                        onClick = { viewModel.switchMode(AgentMode.APPROVAL, autoArmed = false) },
+                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                    ) { Text("审批") }
+                    SegmentedButton(
+                        selected = uiState.mode == AgentMode.AUTO,
+                        onClick = {
+                            if (uiState.mode != AgentMode.AUTO) showAutoArmDialog = true
+                        },
+                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                    ) { Text("全自动") }
+                }
+            }
 
         if (uiState.mode == AgentMode.AUTO) {
             Text(
@@ -166,15 +194,16 @@ fun ChatScreen(viewModel: ChatViewModel = hiltViewModel()) {
                 onValueChange = { inputText = it },
                 modifier = Modifier.weight(1f),
                 placeholder = { Text("Ask about your notes…") },
+                shape = RoundedCornerShape(24.dp),
                 maxLines = 4
             )
             Spacer(modifier = Modifier.width(8.dp))
             if (uiState.isRunning) {
-                IconButton(onClick = viewModel::stop) {
+                FilledIconButton(onClick = viewModel::stop) {
                     Icon(Icons.Default.Stop, contentDescription = "Stop")
                 }
             } else {
-                IconButton(
+                FilledIconButton(
                     onClick = {
                         viewModel.send(inputText)
                         inputText = ""
@@ -184,6 +213,7 @@ fun ChatScreen(viewModel: ChatViewModel = hiltViewModel()) {
                     Icon(Icons.Default.Send, contentDescription = "Send")
                 }
             }
+        }
         }
     }
 
@@ -309,14 +339,20 @@ private fun ChatBubble(text: String, isUser: Boolean, isStreaming: Boolean = fal
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
         Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = if (isUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.widthIn(max = 320.dp)
+            shape = RoundedCornerShape(
+                topStart = 20.dp,
+                topEnd = 20.dp,
+                bottomStart = if (isUser) 20.dp else 6.dp,
+                bottomEnd = if (isUser) 6.dp else 20.dp
+            ),
+            color = if (isUser) MaterialTheme.colorScheme.primaryContainer
+            else MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.widthIn(max = 300.dp)
         ) {
             Text(
                 text = text + if (isStreaming) " ▌" else "",
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(10.dp)
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
             )
         }
     }
@@ -333,16 +369,13 @@ private fun ToolCallCard(message: ChatMessageView) {
                     MaterialTheme.colorScheme.errorContainer
                 message.toolResultSummary?.startsWith("✗") == true ->
                     MaterialTheme.colorScheme.errorContainer
-                else -> MaterialTheme.colorScheme.surfaceVariant
+                else -> MaterialTheme.colorScheme.surfaceContainerHigh
             }
         )
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = toolBadge(state, message.toolResultSummary),
-                    style = MaterialTheme.typography.labelMedium
-                )
+                ToolStatusBadge(state = state, resultSummary = message.toolResultSummary)
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = message.toolName ?: "tool",
@@ -358,11 +391,23 @@ private fun ToolCallCard(message: ChatMessageView) {
     }
 }
 
-private fun toolBadge(state: ApprovalState?, resultSummary: String?): String = when {
-    state == ApprovalState.PENDING -> "⏳ 等待确认"
-    state == ApprovalState.DENIED -> "🚫 已拒绝"
-    state == ApprovalState.VOIDED -> "✖ 已作废"
-    state == ApprovalState.APPROVED && resultSummary == null -> "▶ 执行中"
-    resultSummary?.startsWith("✗") == true -> "✗ 失败"
-    else -> "✅ 已执行"
+@Composable
+private fun ToolStatusBadge(state: ApprovalState?, resultSummary: String?) {
+    val (icon, label) = when {
+        state == ApprovalState.PENDING -> Icons.Outlined.HourglassTop to "等待确认"
+        state == ApprovalState.DENIED -> Icons.Default.Block to "已拒绝"
+        state == ApprovalState.VOIDED -> Icons.Default.Cancel to "已作废"
+        state == ApprovalState.APPROVED && resultSummary == null -> Icons.Default.PlayArrow to "执行中"
+        resultSummary?.startsWith("✗") == true -> Icons.Default.ErrorOutline to "失败"
+        else -> Icons.Default.CheckCircle to "已执行"
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(14.dp)
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(text = label, style = MaterialTheme.typography.labelMedium)
+    }
 }

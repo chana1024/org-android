@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.documentfile.provider.DocumentFile
 import com.orgutil.di.IoDispatcher
+import com.orgutil.domain.files.OrgFileChangeNotifier
 import com.orgutil.domain.model.OrgFileInfo
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
@@ -22,6 +23,7 @@ class FileDataSourceImpl @Inject constructor(
     private val documentTreeStore: DocumentTreeStore,
     private val orgInboxStore: OrgInboxStore,
     private val orgFileScanner: OrgFileScanner,
+    private val fileChangeNotifier: OrgFileChangeNotifier,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : FileDataSource {
 
@@ -55,6 +57,7 @@ class FileDataSourceImpl @Inject constructor(
                 }
                 os.flush()
             }
+            fileChangeNotifier.notifyChanged()
         } catch (e: Exception) {
             throw IOException("Failed to write file: ${e.message}", e)
         }
@@ -84,6 +87,7 @@ class FileDataSourceImpl @Inject constructor(
             val documentFile = DocumentFile.fromSingleUri(context, uri)
             if (documentFile?.exists() == true) {
                 documentFile.delete()
+                fileChangeNotifier.notifyChanged()
             }
         } catch (e: Exception) {
             throw IOException("Failed to delete file: ${e.message}", e)
@@ -99,7 +103,9 @@ class FileDataSourceImpl @Inject constructor(
         // returned new Uri MUST be used. A null result means the provider
         // renamed in place, where the old uri remains valid.
         try {
-            DocumentsContract.renameDocument(context.contentResolver, uri, newName) ?: uri
+            val renamedUri = DocumentsContract.renameDocument(context.contentResolver, uri, newName)
+            fileChangeNotifier.notifyChanged()
+            renamedUri ?: uri
         } catch (e: SecurityException) {
             throw IOException("No permission to rename: ${e.message}", e)
         } catch (e: UnsupportedOperationException) {

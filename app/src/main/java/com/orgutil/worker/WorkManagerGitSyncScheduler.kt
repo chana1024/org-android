@@ -60,27 +60,29 @@ class WorkManagerGitSyncScheduler internal constructor(
             .map { workInfos -> workInfos.toGitSyncStatus() }
     }
 
+    /**
+     * Maps the chain to the status of its LATEST record.
+     *
+     * getWorkInfosForUniqueWorkFlow returns the full history (terminal records
+     * survive until pruned); aggregating with `any { FAILED }` lets a stale
+     * failure permanently mask newer successes. Records arrive in insertion
+     * order, so the last element is the most recent run.
+     */
     private fun List<WorkInfo>.toGitSyncStatus(): GitSyncStatus {
-        if (isEmpty()) return GitSyncStatus.Idle
-        return when {
-            any { it.state == WorkInfo.State.RUNNING } -> {
-                val running = first { it.state == WorkInfo.State.RUNNING }
-                GitSyncStatus.Running(running.progress.getString(GitSyncWorker.KEY_STEP) ?: "Syncing")
-            }
-            any { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED } ->
-                GitSyncStatus.Enqueued
-            any { it.state == WorkInfo.State.FAILED } -> {
-                val failed = first { it.state == WorkInfo.State.FAILED }
-                GitSyncStatus.Failed(
-                    failed.outputData.getString(GitSyncWorker.KEY_ERROR) ?: "Git sync failed",
-                    failed.outputData.getLong(GitSyncWorker.KEY_SYNC_TIME, 0L)
-                )
-            }
-            any { it.state == WorkInfo.State.CANCELLED } ->
-                GitSyncStatus.Failed("Git sync cancelled", 0L)
-            any { it.state == WorkInfo.State.SUCCEEDED } -> {
-                val succeeded = first { it.state == WorkInfo.State.SUCCEEDED }
-                val output = succeeded.outputData
+        val latest = lastOrNull() ?: return GitSyncStatus.Idle
+        return when (latest.state) {
+            WorkInfo.State.RUNNING -> GitSyncStatus.Running(
+                latest.progress.getString(GitSyncWorker.KEY_STEP) ?: "Syncing"
+            )
+            WorkInfo.State.ENQUEUED,
+            WorkInfo.State.BLOCKED -> GitSyncStatus.Enqueued
+            WorkInfo.State.FAILED -> GitSyncStatus.Failed(
+                latest.outputData.getString(GitSyncWorker.KEY_ERROR) ?: "Git sync failed",
+                latest.outputData.getLong(GitSyncWorker.KEY_SYNC_TIME, 0L)
+            )
+            WorkInfo.State.CANCELLED -> GitSyncStatus.Failed("Git sync cancelled", 0L)
+            WorkInfo.State.SUCCEEDED -> {
+                val output = latest.outputData
                 val conflicted = output.getString(GitSyncWorker.KEY_CONFLICTED)
                     ?.split(',')
                     ?.filter { it.isNotBlank() }
@@ -95,7 +97,6 @@ class WorkManagerGitSyncScheduler internal constructor(
                     )
                 }
             }
-            else -> GitSyncStatus.Idle
         }
     }
 

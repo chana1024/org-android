@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.orgutil.domain.model.OrgNode
+import com.orgutil.ui.theme.LocalExtendedColors
 
 @Composable
 fun OrgRenderer(
@@ -337,7 +338,7 @@ private fun TodoBadge(
     modifier: Modifier = Modifier
 ) {
     val (backgroundColor, textColor) = getTodoColors(todoState)
-    
+
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
@@ -347,7 +348,7 @@ private fun TodoBadge(
         Text(
             text = todoState,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            fontSize = 12.sp,
+            style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Bold
         )
     }
@@ -358,18 +359,18 @@ private fun PriorityBadge(
     priority: String,
     modifier: Modifier = Modifier
 ) {
-    val backgroundColor = getPriorityColor(priority)
-    
+    val (containerColor, contentColor) = getPriorityColors(priority)
+
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(4.dp),
-        color = backgroundColor,
-        contentColor = Color.White
+        color = containerColor,
+        contentColor = contentColor
     ) {
         Text(
             text = "[#$priority]",
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            fontSize = 11.sp,
+            style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold
         )
     }
@@ -404,8 +405,7 @@ private fun TagChip(
         Text(
             text = ":$tag:",
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium
+            style = MaterialTheme.typography.labelSmall
         )
     }
 }
@@ -458,8 +458,7 @@ private fun OrgContent(
                         Text(
                             text = line,
                             modifier = Modifier.padding(vertical = 2.dp),
-                            fontSize = 14.sp,
-                            lineHeight = 20.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -480,13 +479,12 @@ private fun BulletItem(
     ) {
         Text(
             text = "•",
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.primary
         )
         Text(
             text = text,
-            fontSize = 14.sp,
-            lineHeight = 20.sp,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f)
         )
@@ -501,8 +499,7 @@ private fun NumberedItem(
     Text(
         text = text,
         modifier = modifier.padding(vertical = 1.dp),
-        fontSize = 14.sp,
-        lineHeight = 20.sp,
+        style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
 }
@@ -522,8 +519,7 @@ private fun OrgDirective(
         Text(
             text = text,
             modifier = Modifier.padding(8.dp),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
         )
     }
@@ -568,11 +564,12 @@ private fun getTodoColors(todoState: String): Pair<Color, Color> {
 }
 
 @Composable
-private fun getPriorityColor(priority: String): Color {
+private fun getPriorityColors(priority: String): Pair<Color, Color> {
+    val extended = LocalExtendedColors.current
     return when (priority.uppercase()) {
-        "A" -> Color(0xFFE53E3E) // Red
-        "B" -> Color(0xFFED8936) // Orange
-        "C" -> Color(0xFF3182CE) // Blue
-        else -> MaterialTheme.colorScheme.outline
+        "A" -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+        "B" -> extended.warningContainer to extended.onWarningContainer
+        "C" -> extended.infoContainer to extended.onInfoContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
     }
 }

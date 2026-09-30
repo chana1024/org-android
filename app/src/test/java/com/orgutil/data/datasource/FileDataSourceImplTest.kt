@@ -4,6 +4,7 @@ import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
+import com.orgutil.domain.files.OrgFileChangeNotifier
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -42,7 +43,7 @@ class FileDataSourceImplTest {
         `when`(context.contentResolver).thenReturn(contentResolver)
         // Unconfined keeps withContext(ioDispatcher) on the test thread, where
         // the thread-local mockStatic registration is visible.
-        dataSource = FileDataSourceImpl(context, documentTreeStore, mock(OrgInboxStore::class.java), mock(OrgFileScanner::class.java), ioDispatcher = UnconfinedTestDispatcher())
+        dataSource = FileDataSourceImpl(context, documentTreeStore, mock(OrgInboxStore::class.java), mock(OrgFileScanner::class.java), OrgFileChangeNotifier(), ioDispatcher = UnconfinedTestDispatcher())
     }
 
     @Test

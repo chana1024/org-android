@@ -1,8 +1,6 @@
 package com.orgutil.ui.screens
 
 import android.net.Uri
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,15 +19,20 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -43,13 +46,19 @@ import com.orgutil.ui.viewmodel.AgendaUiState
 import com.orgutil.ui.viewmodel.AgendaViewMode
 import com.orgutil.ui.viewmodel.AgendaViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun AgendaScreen(
     onFileSelected: (Uri, Int?, Int?, String?) -> Unit,
     viewModel: AgendaViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    // Re-enters composition on every tab switch back to Agenda: silently
+    // reload so edits (also external ones) show up without tapping refresh.
+    LaunchedEffect(Unit) {
+        viewModel.refresh(showLoading = false)
+    }
 
     Scaffold(
         topBar = {
@@ -65,7 +74,7 @@ fun AgendaScreen(
                         }
                     }
                 )
-                AgendaModeChips(
+                AgendaModeSelector(
                     selectedMode = uiState.selectedMode,
                     onModeSelected = viewModel::setMode
                 )
@@ -78,7 +87,7 @@ fun AgendaScreen(
                 .padding(paddingValues)
         ) {
             when {
-                uiState.isLoading -> CircularProgressIndicator(
+                uiState.isLoading -> LoadingIndicator(
                     modifier = Modifier.align(Alignment.Center)
                 )
 
@@ -104,21 +113,21 @@ fun AgendaScreen(
 }
 
 @Composable
-private fun AgendaModeChips(
+private fun AgendaModeSelector(
     selectedMode: AgendaViewMode,
     onModeSelected: (AgendaViewMode) -> Unit
 ) {
-    Row(
+    val modes = AgendaViewMode.entries
+    SingleChoiceSegmentedButtonRow(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-        AgendaViewMode.values().forEach { mode ->
-            FilterChip(
+        modes.forEachIndexed { index, mode ->
+            SegmentedButton(
                 selected = selectedMode == mode,
                 onClick = { onModeSelected(mode) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = modes.size),
                 label = { Text(mode.label) }
             )
         }

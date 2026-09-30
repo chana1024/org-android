@@ -6,6 +6,7 @@ import com.orgutil.domain.agenda.DailyAgenda
 import com.orgutil.domain.agenda.OrgAgenda
 import com.orgutil.domain.agenda.ProjectControlAgenda
 import com.orgutil.domain.agenda.WeeklyAgenda
+import com.orgutil.domain.files.OrgFileChangeNotifier
 import com.orgutil.domain.usecase.GetOrgAgendaUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -49,7 +50,7 @@ class AgendaViewModelTest {
         val agenda = emptyAgenda(goalText = "Goal")
         `when`(getOrgAgendaUseCase()).thenReturn(Result.success(agenda))
 
-        val viewModel = AgendaViewModel(getOrgAgendaUseCase)
+        val viewModel = AgendaViewModel(getOrgAgendaUseCase, OrgFileChangeNotifier())
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertFalse(viewModel.uiState.value.isLoading)
@@ -61,7 +62,7 @@ class AgendaViewModelTest {
     fun `setMode updates selected agenda view`() = runTest {
         `when`(getOrgAgendaUseCase()).thenReturn(Result.success(emptyAgenda()))
 
-        val viewModel = AgendaViewModel(getOrgAgendaUseCase)
+        val viewModel = AgendaViewModel(getOrgAgendaUseCase, OrgFileChangeNotifier())
         testDispatcher.scheduler.advanceUntilIdle()
         viewModel.setMode(AgendaViewMode.PROJECTS)
 

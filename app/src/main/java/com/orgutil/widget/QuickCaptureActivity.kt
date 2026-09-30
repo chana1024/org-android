@@ -15,7 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
+import com.orgutil.ui.theme.LocalExtendedColors
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -81,7 +81,7 @@ fun QuickCaptureDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "📝 快速记录",
+                text = "快速记录",
                 fontWeight = FontWeight.Bold
             )
         },
@@ -93,29 +93,29 @@ fun QuickCaptureDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(focusRequester),
-                    placeholder = { 
-                        Text("输入您的想法或待办事项...") 
+                    placeholder = {
+                        Text("输入您的想法或待办事项...")
                     },
                     minLines = 3,
                     maxLines = 6,
                     shape = RoundedCornerShape(12.dp)
                 )
-                
+
                 uiState.error?.let { error ->
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = error,
                         color = MaterialTheme.colorScheme.error,
-                        fontSize = 12.sp
+                        style = MaterialTheme.typography.bodySmall
                     )
                 }
-                
+
                 uiState.successMessage?.let { message ->
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = message,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFF2E7D32),
+                        color = LocalExtendedColors.current.success,
                         fontWeight = FontWeight.Medium
                     )
                 }

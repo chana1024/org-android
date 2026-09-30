@@ -57,19 +57,33 @@ fun SyncScreen(
         viewModel.refresh()
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text(
-            text = stringResource(R.string.sync_title),
-            style = MaterialTheme.typography.headlineSmall
-        )
-
-        GitSyncStatusMonitor(status = uiState.syncStatus)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.sync_title)) },
+                actions = {
+                    IconButton(
+                        onClick = viewModel::requestSync,
+                        enabled = !uiState.isSyncRequestInFlight
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CloudSync,
+                            contentDescription = stringResource(R.string.sync_now)
+                        )
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(paddingValues)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            GitSyncStatusMonitor(status = uiState.syncStatus)
 
         uiState.error?.let { error ->
             Text(
@@ -285,11 +299,17 @@ fun SyncScreen(
                 }
             }
         }
+        }
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun GitSyncStatusMonitor(status: GitSyncStatus) {
+    val isBusy = status is GitSyncStatus.Running || status is GitSyncStatus.Enqueued
+    if (isBusy) {
+        LinearWavyProgressIndicator(modifier = Modifier.fillMaxWidth())
+    }
     when (status) {
         GitSyncStatus.Idle -> Unit
         GitSyncStatus.Enqueued -> StatusRow(stringResource(R.string.sync_status_queued))
