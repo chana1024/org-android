@@ -14,7 +14,9 @@ import com.orgutil.domain.repository.GitSyncRepository
 import com.orgutil.domain.repository.OrgAgendaRepository
 import com.orgutil.domain.repository.OrgFileRepository
 import com.orgutil.domain.sync.GitSyncScheduler
+import com.orgutil.domain.gcal.GcalScheduler
 import com.orgutil.worker.WorkManagerFileIndexScheduler
+import com.orgutil.worker.WorkManagerGcalSyncScheduler
 import com.orgutil.worker.WorkManagerGitSyncScheduler
 import dagger.Binds
 import dagger.Module
@@ -76,6 +78,12 @@ abstract class DataModule {
     abstract fun bindGitSyncScheduler(
         workManagerGitSyncScheduler: WorkManagerGitSyncScheduler
     ): GitSyncScheduler
+
+    @Binds
+    @Singleton
+    abstract fun bindGcalScheduler(
+        workManagerGcalSyncScheduler: WorkManagerGcalSyncScheduler
+    ): GcalScheduler
 
     companion object {
         @Provides

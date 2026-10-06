@@ -30,8 +30,11 @@ fun orgStateIsDoing(state: String): Boolean =
     state.uppercase() in setOf("DOING", "IN-PROGRESS", "STARTED")
 
 /**
- * TODO keyword chip: TODO neutral, DOING teal, WAITING amber, DONE green,
- * CANCELLED dim — per the design system state grammar.
+ * TODO keyword chip: one distinctive hue per Doom keyword — TODO neutral,
+ * DOING teal, VIBING cyan, NEXT blue, HOLD steel, WAIT/WAITING amber,
+ * SANDBAGGING brown, DONE green, AREA olive, PROJ violet, MAYBE
+ * lavender-grey, DROPPED rose, CANCELLED dim grey — so no two common states
+ * share a colour wherever the chip renders (agenda, org renderer, editor).
  */
 @Composable
 fun OrgStateChip(
@@ -39,17 +42,35 @@ fun OrgStateChip(
     modifier: Modifier = Modifier
 ) {
     val extended = LocalExtendedColors.current
-    val (container, content) = when {
-        orgStateIsDone(state) ->
+    val (container, content) = when (state.uppercase()) {
+        "DONE" ->
             extended.successContainer to extended.onSuccessContainer
-        orgStateIsCancelled(state) ->
-            MaterialTheme.colorScheme.outlineVariant to MaterialTheme.colorScheme.onSurfaceVariant
-        orgStateIsDoing(state) ->
-            MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
-        state.uppercase() == "TODO" ->
+        "DOING", "IN-PROGRESS", "STARTED" ->
+            extended.doingContainer to extended.onDoingContainer
+        "VIBING" ->
+            extended.vibingContainer to extended.onVibingContainer
+        "NEXT" ->
+            extended.infoContainer to extended.onInfoContainer
+        "TODO" ->
             extended.todoContainer to extended.onTodoContainer
-        state.uppercase() == "WAITING" ->
+        "WAIT", "WAITING" ->
             extended.warningContainer to extended.onWarningContainer
+        "HOLD" ->
+            extended.holdContainer to extended.onHoldContainer
+        "SANDBAGGING" ->
+            extended.sandbaggingContainer to extended.onSandbaggingContainer
+        "PROJ" ->
+            extended.projectContainer to extended.onProjectContainer
+        "AREA" ->
+            extended.areaContainer to extended.onAreaContainer
+        "MAYBE" ->
+            extended.maybeContainer to extended.onMaybeContainer
+        "DROPPED" ->
+            extended.droppedContainer to extended.onDroppedContainer
+        "CANCELLED", "CANCELED" ->
+            // Dim grey chip; Classic defaults are the exact historic
+            // outlineVariant/onSurface pair, Kraft swaps in the light base.
+            extended.cancelledContainer to extended.onCancelledContainer
         else ->
             MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
     }

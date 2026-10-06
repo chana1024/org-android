@@ -135,6 +135,8 @@ internal interface WorkManagerGateway {
         request: PeriodicWorkRequest
     )
 
+    fun cancelUniqueWork(name: String)
+
     fun observeUniqueWork(name: String): Flow<List<WorkInfo>>
 }
 
@@ -157,6 +159,10 @@ internal class AndroidxWorkManagerGateway(
         request: PeriodicWorkRequest
     ) {
         workManager.enqueueUniquePeriodicWork(name, policy, request)
+    }
+
+    override fun cancelUniqueWork(name: String) {
+        workManager.cancelUniqueWork(name)
     }
 
     override fun observeUniqueWork(name: String): Flow<List<WorkInfo>> {

@@ -90,12 +90,32 @@ class FileEditorViewModel @Inject constructor(
                 .onSuccess {
                     Log.d("FileEditorViewModel", "Save SUCCESS - updating UI state")
                     Log.d("FileEditorViewModel", "Setting hasUnsavedChanges=false, saveSuccess=true")
-                    _uiState.value = _uiState.value.copy(
+                    // updatedDocument only swapped the raw text: its nodes
+                    // are still the parse of the PRE-SAVE content, so VIEW
+                    // mode would keep rendering the stale tree. Re-read the
+                    // file the write path just verified and adopt its fresh
+                    // document (nodes/preamble/lastModified) instead.
+                    val savedAtSave = currentState.editedContent
+                    val readbackResult = readOrgFileUseCase(document.uri)
+                    val readback = readbackResult.getOrNull()
+                    val nextDocument = readback ?: updatedDocument
+                    val current = _uiState.value
+                    // Follow the readback text only while the composer still
+                    // holds exactly what was saved — keystrokes typed during
+                    // the readback are never clobbered.
+                    val stillAtSavedText = current.editedContent == savedAtSave
+                    _uiState.value = current.copy(
                         isSaving = false,
-                        document = updatedDocument,
-                        hasUnsavedChanges = false,
+                        document = nextDocument,
+                        editedContent = if (stillAtSavedText) nextDocument.content else current.editedContent,
+                        hasUnsavedChanges = if (stillAtSavedText) false else current.hasUnsavedChanges,
                         saveSuccess = true,
-                        error = null
+                        // Save itself succeeded; a failed readback means the
+                        // preview may still show the pre-save tree — say so
+                        // instead of failing the whole save silently.
+                        error = readbackResult.exceptionOrNull()?.let { failure ->
+                            "Saved, but reloading the file failed — preview may be stale. ${failure.message}"
+                        }
                     )
                     Log.d("FileEditorViewModel", "=== SAVE FILE OPERATION COMPLETED SUCCESSFULLY ===")
                 }

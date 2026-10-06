@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Full-cell white outline used as the outer halo of the TODAY marker.
+     Drawn behind widget_habit_today_outline_dark so the combined two-tone
+     ring stays legible over any face color (white pops on saturated faces,
+     the dark core carries the pale dimmed ones). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#00000000" />
+    <stroke android:width="3dp" android:color="#FFFFFF" />
+    <corners android:radius="2dp" />
+</shape>

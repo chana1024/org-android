@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- KRAFT LEDGER TODO badge: the ONE shared light base (#EEEAE0) under
+     every keyword label — the per-keyword ink foreground is applied as the
+     text color by WidgetTodoBadge, mirroring the in-app OrgStateChip kraft
+     grammar. Classic keeps its per-keyword baked containers. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#EEEAE0" />
+    <corners android:radius="7dp" />
+</shape>

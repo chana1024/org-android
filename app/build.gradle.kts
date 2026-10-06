@@ -126,6 +126,13 @@ dependencies {
     // EncryptedSharedPreferences for git credentials
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
+    // Google Calendar sync: AuthorizationClient (Google Identity Services
+    // authorization API) for the calendar.events OAuth scope. Access tokens
+    // only - no client secret ever ships in the APK.
+    implementation("com.google.android.gms:play-services-auth:22.0.0")
+    // Task.await() bridge for the play-services authorization calls
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.0")
+
     // Core library desugaring (java.* APIs JGit references on older min SDKs)
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 
@@ -137,6 +144,9 @@ dependencies {
     // Real SQLite on the JVM to pin FTS4 search semantics (CjkTextEncoder +
     // FtsQueryBuilder + migration SQL) without an emulator.
     testImplementation("org.xerial:sqlite-jdbc:3.45.3.0")
+    // Real HTTP (loopback) fake Anthropic/OpenAI SSE endpoints for protocol
+    // and retry/fallback/cancel pinning without paid LLM calls.
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")

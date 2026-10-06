@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.orgutil.domain.model.OrgNode
+import com.orgutil.ui.theme.LocalExtendedColors
 import com.orgutil.ui.theme.OrgMono
 
 @Composable
@@ -485,6 +486,9 @@ private fun OrgContent(
 @Composable
 private fun PropertiesDrawer(lines: List<String>) {
     var expanded by remember(lines) { mutableStateOf(false) }
+    // Hairline token captured here: the drawBehind lambda below is not a
+    // composable scope. Classic keeps the exact historic grey #B0B2B0.
+    val railColor = LocalExtendedColors.current.faintDivider
     Column {
         Surface(
             onClick = { expanded = !expanded },
@@ -514,8 +518,7 @@ private fun PropertiesDrawer(lines: List<String>) {
                     .padding(start = 8.dp, top = 4.dp)
                     .drawBehind {
                         drawLine(
-                            color = androidx.compose.ui.graphics
-                                .Color(0xFFB0B2B0).copy(alpha = 0.5f),
+                            color = railColor.copy(alpha = 0.5f),
                             start = androidx.compose.ui.geometry.Offset(0f, 0f),
                             end = androidx.compose.ui.geometry.Offset(0f, size.height),
                             strokeWidth = 2f
@@ -576,6 +579,11 @@ private fun OrgDirective(
     text: String,
     modifier: Modifier = Modifier
 ) {
+    // Token-driven text: Classic = the exact historic onSurfaceVariant @70%
+    // composite; Kraft = full-opacity secondary (#5A5446) clearing 4.5:1 on
+    // the surfaceVariant@30% wash over kraft tones. Wash background itself
+    // is unchanged in both themes.
+    val extended = LocalExtendedColors.current
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -587,7 +595,7 @@ private fun OrgDirective(
             text = text,
             modifier = Modifier.padding(8.dp),
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            color = extended.directiveText
         )
     }
 }

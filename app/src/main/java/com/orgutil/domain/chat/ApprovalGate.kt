@@ -62,16 +62,33 @@ class DefaultApprovalGate @Inject constructor() : ApprovalGate {
 
 /**
  * Session-scoped "always allow" cache for MEDIUM tools (write/create).
- * Lives in memory only - it expires with the process by design.
+ * Lives in memory only - it expires with the process by design. Grants are
+ * keyed by sessionId: a grant issued in one chat must never auto-approve
+ * the same action in another chat (FM-S1), and leaving/deleting a session
+ * clears only that session's grants.
  */
 class SessionGrantStore {
-    private val grants = mutableSetOf<String>()
+    private val grantsBySession = mutableMapOf<String, MutableSet<String>>()
 
     fun key(toolName: String, targetPath: String?): String = "$toolName:${targetPath ?: "*"}"
 
-    fun grant(key: String) {
-        grants.add(key)
+    @Synchronized
+    fun grant(sessionId: String, key: String) {
+        grantsBySession.getOrPut(sessionId) { mutableSetOf() }.add(key)
     }
 
-    fun has(key: String): Boolean = grants.contains(key)
+    @Synchronized
+    fun has(sessionId: String, key: String): Boolean =
+        grantsBySession[sessionId]?.contains(key) == true
+
+    /** Leaving or deleting a session drops only its grants. */
+    @Synchronized
+    fun clear(sessionId: String) {
+        grantsBySession.remove(sessionId)
+    }
+
+    @Synchronized
+    fun clearAll() {
+        grantsBySession.clear()
+    }
 }

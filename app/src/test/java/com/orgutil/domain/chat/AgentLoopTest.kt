@@ -43,10 +43,16 @@ class AgentLoopTest {
         var nextId = 0
         val audit = mutableListOf<AuditEntry>()
         val toolApprovalStates = mutableListOf<Pair<String, ApprovalState>>()
+        val userMessages = mutableListOf<Pair<String, String>>()
+        var replayed: List<LlmMessage> = emptyList()
 
-        override suspend fun appendUserMessage(sessionId: String, text: String): String = "m${nextId++}"
+        override suspend fun appendUserMessage(sessionId: String, text: String): String {
+            userMessages.add(sessionId to text)
+            return "m${nextId++}"
+        }
         override suspend fun appendAssistantMessage(
-            sessionId: String, text: String, toolUses: List<ToolUseBlock>, riskLevels: Map<String, String>
+            sessionId: String, text: String, toolUses: List<ToolUseBlock>, riskLevels: Map<String, String>,
+            nativeBlocksJson: String?
         ): String = "m${nextId++}"
         override suspend fun appendToolCallMessage(
             sessionId: String, toolUse: ToolUseBlock, argsDigest: String,
@@ -57,9 +63,22 @@ class AgentLoopTest {
         }
         override suspend fun updateToolResult(messageId: String, summary: String, isError: Boolean) = Unit
         override suspend fun appendAudit(entry: AuditEntry) { audit.add(entry) }
-        override suspend fun buildLlmMessages(sessionId: String): List<LlmMessage> = emptyList()
+        override suspend fun buildLlmMessages(sessionId: String): List<LlmMessage> = replayed
         override suspend fun voidPendingApprovals(sessionId: String) = Unit
         override fun observeMessages(sessionId: String): Flow<List<ChatMessageView>> = flowOf(emptyList())
+    }
+
+    private class RecordingRunTracker : RunStateTracker {
+        val states = mutableListOf<Pair<String, String>>()
+        var lastPrompt: String? = null
+        override suspend fun onRunStarted(sessionId: String, prompt: String?) {
+            states.add(sessionId to "RUNNING")
+            // Same semantics as ChatRepository: null = phase change, keep the
+            // original prompt of the run.
+            if (prompt != null) lastPrompt = prompt
+        }
+        override suspend fun onAwaitingApproval(sessionId: String) { states.add(sessionId to "AWAITING_APPROVAL") }
+        override suspend fun onRunSettled(sessionId: String) { states.add(sessionId to "IDLE") }
     }
 
     private class ScriptedLlm(private val turns: List<List<ToolUseBlock>>) : LlmClient {
@@ -80,13 +99,15 @@ class AgentLoopTest {
         turns: List<List<ToolUseBlock>>,
         transcript: FakeTranscriptStore,
         gate: DefaultApprovalGate = DefaultApprovalGate(),
-        grants: SessionGrantStore = SessionGrantStore()
+        grants: SessionGrantStore = SessionGrantStore(),
+        tracker: RunStateTracker = RunStateTracker.NoOp
     ): AgentLoop = AgentLoop(
         catalog = FakeCatalog(tools),
         approvalGate = gate,
         sessionGrants = grants,
         transcriptStore = transcript,
-        llmClient = ScriptedLlm(turns)
+        llmClient = ScriptedLlm(turns),
+        runStateTracker = tracker
     )
 
     private val writePolicy = ToolPolicy(risk = RiskLevel.MEDIUM, sessionGrantAllowed = true)
@@ -255,5 +276,70 @@ class AgentLoopTest {
 
         assertEquals(1, pendingCount)
         assertEquals(2, executed.size)
+    }
+
+    @Test
+    fun `resume continues an interrupted run without a new user message or tool re-execution`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // FM-R2: resume must replay the persisted transcript to the model
+            // and execute ZERO tools on its own; a scripted model that only
+            // answers text finishes the run without any tool call.
+            val executed = mutableListOf<String>()
+            val transcript = FakeTranscriptStore()
+            transcript.replayed = listOf(
+                LlmMessage.User("organize my notes"),
+                LlmMessage.Assistant(
+                    "looking",
+                    listOf(ToolUseBlock("tu_1", "org_write_file", args()))
+                ),
+                LlmMessage.ToolResults(
+                    listOf(ToolResultBlock("tu_1", "org_write_file", "Execution state unknown", isError = true))
+                )
+            )
+            val tracker = RecordingRunTracker()
+            val agentLoop = loop(
+                tools = listOf(FakeTool("org_write_file", writePolicy, executed)),
+                turns = listOf(emptyList()), // resumed model turn: text only
+                transcript = transcript,
+                tracker = tracker
+            )
+            agentLoop.modeProvider = { AgentMode.APPROVAL }
+
+            var finished = false
+            agentLoop.resume("s1").collect { event ->
+                if (event is ChatStreamEvent.RunFinished) finished = true
+            }
+
+            assertTrue(finished)
+            assertTrue("resume must not execute tools itself", executed.isEmpty())
+            assertTrue("resume must not append a new user message", transcript.userMessages.isEmpty())
+            assertEquals(listOf("s1" to "RUNNING", "s1" to "IDLE"), tracker.states)
+        }
+
+    @Test
+    fun `run state tracker sees running awaiting approval then idle`() = runTest(UnconfinedTestDispatcher()) {
+        val executed = mutableListOf<String>()
+        val transcript = FakeTranscriptStore()
+        val gate = DefaultApprovalGate()
+        val tracker = RecordingRunTracker()
+        val agentLoop = loop(
+            tools = listOf(FakeTool("org_write_file", writePolicy, executed)),
+            turns = listOf(listOf(ToolUseBlock("t1", "org_write_file", args())), emptyList()),
+            transcript = transcript,
+            gate = gate,
+            tracker = tracker
+        )
+        agentLoop.modeProvider = { AgentMode.APPROVAL }
+
+        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
+            agentLoop.run("s1", "please write").collect { }
+        }
+        testScheduler.runCurrent()
+        gate.answer("t1", ApprovalDecision.ApproveOnce)
+        testScheduler.runCurrent()
+        job.join()
+
+        assertEquals(listOf("s1" to "RUNNING", "s1" to "AWAITING_APPROVAL", "s1" to "RUNNING", "s1" to "IDLE"), tracker.states)
+        assertEquals("please write", tracker.lastPrompt)
     }
 }

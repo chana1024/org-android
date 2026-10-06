@@ -3,6 +3,7 @@ package com.orgutil.data.agent.tools
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import com.orgutil.data.agent.AgentPathResolver
+import com.orgutil.data.repository.SkillRunStore
 import com.orgutil.data.datasource.DocumentTreeStore
 import com.orgutil.domain.chat.ToolArgumentException
 import com.orgutil.domain.chat.ToolResult
@@ -68,8 +69,9 @@ class OrgCreateRenameToolsTest {
     // Real resolver: the structural rules must run for real, not be mocked away.
     private val resolver = AgentPathResolver(treeStore, UnconfinedTestDispatcher())
 
-    private val createTool = OrgCreateFileTool(repository, resolver)
-    private val renameTool = OrgRenameFileTool(repository, resolver)
+    private val noSkillRun = SkillRunStore { emptyList() }
+    private val createTool = OrgCreateFileTool(repository, resolver, noSkillRun)
+    private val renameTool = OrgRenameFileTool(repository, resolver, noSkillRun)
 
     private fun mockUri(value: String): Uri = mock(Uri::class.java).also {
         `when`(it.toString()).thenReturn(value)

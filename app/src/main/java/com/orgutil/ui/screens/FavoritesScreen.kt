@@ -1,6 +1,7 @@
 package com.orgutil.ui.screens
 
 import android.net.Uri
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,6 +15,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.orgutil.R
+import com.orgutil.ui.components.OrgTopBar
 import com.orgutil.ui.viewmodel.FavoritesViewModel
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -24,7 +26,10 @@ fun FavoritesScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    Scaffold() { paddingValues ->
+    Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = { OrgTopBar(title = "Favorites") }
+    ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -82,7 +87,9 @@ fun FavoritesScreen(
                 else -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(vertical = 8.dp),
+                        // Bottom clearance so the last favorite scrolls out
+                        // from under the main capture FAB and the nav bar.
+                        contentPadding = PaddingValues(top = 8.dp, bottom = 96.dp),
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         items(uiState.favoriteFiles) { file ->

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- /org widget badge: PROJ violet container (matches OrgStateChip in-app). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#E7DDFF" />
+    <corners android:radius="7dp" />
+</shape>

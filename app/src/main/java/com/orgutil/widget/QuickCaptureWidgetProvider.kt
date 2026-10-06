@@ -36,7 +36,13 @@ class QuickCaptureWidgetProvider : AppWidgetProvider() {
             appWidgetManager: AppWidgetManager,
             appWidgetId: Int
         ) {
-            val views = RemoteViews(context.packageName, R.layout.widget_quick_capture)
+            // Palette resolved fresh per update: the theme-change flow calls
+            // updateAllWidgets right after persisting, so the quick-capture
+            // button re-skins immediately alongside the Agenda widgets.
+            val views = RemoteViews(
+                context.packageName,
+                WidgetTheme.quickCaptureLayout(WidgetTheme.choice(context))
+            )
 
             // Set up button click to open capture dialog
             val captureIntent = QuickCaptureActivity.createIntent(context)

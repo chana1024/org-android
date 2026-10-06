@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Marker ImageView spans the whole cell; the done marker is a centered
+     5dp dot (same size the in-app HabitConsistencyGraph uses). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:gravity="center"
+        android:width="5dp"
+        android:height="5dp">
+        <shape android:shape="oval">
+            <solid android:color="#172624" />
+        </shape>
+    </item>
+</layer-list>

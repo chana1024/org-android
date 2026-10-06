@@ -29,12 +29,17 @@ import com.orgutil.ui.theme.OrgMono
  * Draft app bar: a slim custom 56dp bar — not the M3 TopAppBar. Title is
  * 16sp bold with an optional mono chip beside it; 32dp icon buttons on
  * the right; optional mono trailing text (counters) before the actions.
- * Applies status-bar padding for the edge-to-edge window.
+ *
+ * [applyStatusInset] must be true ONLY for screens that own the window
+ * edge (capture, editor — direct nav destinations). Tab screens render
+ * inside MainScreen, whose own top bar already consumes the status-bar
+ * inset; padding again would double it.
  */
 @Composable
 fun OrgTopBar(
     title: String,
     modifier: Modifier = Modifier,
+    applyStatusInset: Boolean = true,
     onBack: (() -> Unit)? = null,
     backIcon: ImageVector? = null,
     titleChip: (@Composable () -> Unit)? = null,
@@ -47,7 +52,7 @@ fun OrgTopBar(
         Row(
             modifier = modifier
                 .fillMaxWidth()
-                .statusBarsPadding()
+                .then(if (applyStatusInset) Modifier.statusBarsPadding() else Modifier)
                 .heightIn(min = 56.dp)
                 .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically

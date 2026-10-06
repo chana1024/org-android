@@ -36,6 +36,12 @@ fun CaptureScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
+        // Edge-owning screen (direct nav destination, outside MainScreen's
+        // ime-lifted shell): consume navigationBars ∪ ime exactly once on
+        // the content so the tall input's caret AND the add-button stay
+        // visible above the keyboard (edge-to-edge ignores manifest
+        // adjustResize), with no stacked padding when the IME is hidden.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             OrgTopBar(
                 title = "快速记录",
@@ -48,6 +54,7 @@ fun CaptureScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {

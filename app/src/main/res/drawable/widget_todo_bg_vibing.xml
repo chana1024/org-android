@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- /org widget badge: VIBING cyan container (matches OrgStateChip in-app). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#C0F0F4" />
+    <corners android:radius="7dp" />
+</shape>

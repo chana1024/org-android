@@ -13,12 +13,14 @@ import com.orgutil.ui.screens.CaptureScreen
 import com.orgutil.ui.screens.FavoritesScreen
 import com.orgutil.ui.screens.FileEditorScreen
 import com.orgutil.ui.screens.MainScreen
+import com.orgutil.widget.AgendaWidgetOpenRequest
 import java.nio.charset.StandardCharsets
 
 @Composable
 fun OrgUtilNavigation(
     navController: NavHostController,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    widgetRequest: AgendaWidgetOpenRequest? = null
 ) {
     NavHost(
         navController = navController,
@@ -27,6 +29,7 @@ fun OrgUtilNavigation(
     ) {
         composable("main") {
             MainScreen(
+                widgetRequest = widgetRequest,
                 onFileSelected = { fileUri, highlightOffset, highlightLength, highlightQuery ->
                     Log.d("OrgUtilNavigation", "File URI: $fileUri")
                     // 使用Base64编码，避免URL编码问题

@@ -18,6 +18,28 @@
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
 
+    <!-- Pomodoro timer: notifications, phase-end alarm, break overlay, reboot restore -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Chat links: make installed browsers visible to this app on
+         Android 11+ so an http/https ACTION_VIEW always resolves. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="http" />
+        </intent>
+    </queries>
+
     <application
         android:name=".OrgUtilApplication"
         android:allowBackup="true"
@@ -45,7 +67,9 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:label="@string/app_name"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.OrgUtil">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -80,6 +104,49 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/quick_capture_widget_info" />
+        </receiver>
+
+        <!-- Scrollable Agenda collection widget; the compact quick-capture
+             widget above remains an independent home-screen option. -->
+        <receiver
+            android:name=".widget.AgendaWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.orgutil.widget.REFRESH_AGENDA" />
+                <action android:name="com.orgutil.widget.REFRESH_POMODORO" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/agenda_widget_info" />
+        </receiver>
+        <service
+            android:name=".widget.AgendaWidgetRemoteViewsService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+
+        <!-- Pomodoro: phase-end alarm + notification actions. Non-exported —
+             only this app's explicit PendingIntents can reach it, so no other
+             app can forge ACTION_STOP to kill a running session. -->
+        <receiver
+            android:name=".pomodoro.PomodoroReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.orgutil.pomodoro.PHASE_END" />
+                <action android:name="com.orgutil.pomodoro.STOP" />
+                <action android:name="com.orgutil.pomodoro.DISMISS" />
+            </intent-filter>
+        </receiver>
+        <!-- Pomodoro: restore the timer after reboot / app update. Exported
+             only because the protected BOOT_COMPLETED system broadcast
+             requires it; solely system actions are handled. -->
+        <receiver
+            android:name=".pomodoro.PomodoroBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
         </receiver>
     </application>
 

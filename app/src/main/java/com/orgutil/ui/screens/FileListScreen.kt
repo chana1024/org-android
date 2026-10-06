@@ -84,6 +84,7 @@ fun FileListScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             Column {
                 OrgTopBar(
@@ -356,7 +357,7 @@ private fun FileResultsList(
         // Search results keep per-item cards (preview layout).
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(vertical = 4.dp, horizontal = 12.dp),
+            contentPadding = PaddingValues(top = 4.dp, bottom = 96.dp, start = 12.dp, end = 12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             items(uiState.files) { file ->
@@ -371,7 +372,7 @@ private fun FileResultsList(
         // Draft grouping: the whole list is one card of rows with dividers.
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 96.dp)
         ) {
             item {
                 Card(

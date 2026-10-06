@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- KRAFT LEDGER twin of widget_agenda_section_background.xml — the
+     grouping/header token #C8C1B1 with ink text on top (colored header, not
+     a dark one); same 10dp corner. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#C8C1B1" />
+    <corners android:radius="10dp" />
+</shape>

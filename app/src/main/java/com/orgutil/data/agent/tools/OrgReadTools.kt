@@ -1,5 +1,6 @@
 package com.orgutil.data.agent.tools
 
+import com.orgutil.data.repository.OrgIntegrationService
 import com.orgutil.domain.chat.RiskLevel
 import com.orgutil.domain.chat.ToolCallRequest
 import com.orgutil.domain.chat.ToolPolicy
@@ -83,7 +84,9 @@ class OrgReadFileTool @Inject constructor(
 
     override val name = "org_read_file"
     override val description =
-        "Reads the full content of one .org file. Path is relative to the notes tree root."
+        "Reads the full content of one .org file. Path is relative to the notes tree root. " +
+            "The trailing metadata line reports the file's sha256 and size; when a tool asks for " +
+            "a base hash (e.g. org_integrate's base_sha256), use exactly that value."
     override val parametersSchema = objectSchema("path" to "Relative path, e.g. notes/gtd.org")
     override val policy = ToolPolicy(risk = RiskLevel.LOW, sessionGrantAllowed = false)
 
@@ -97,14 +100,16 @@ class OrgReadFileTool @Inject constructor(
             }
         }
         val content = document.content
+        // The hash covers the WHOLE file even when the body is truncated.
+        val meta = "\n[file $path sha256=${OrgIntegrationService.sha256(content)} chars=${content.length}]"
         return if (content.length > MAX_CONTENT_CHARS) {
             ToolResult.Ok(
                 summaryForModel = content.take(MAX_CONTENT_CHARS) +
-                    "\n... [truncated, ${content.length} chars total]",
+                    "\n... [truncated, ${content.length} chars total]" + meta,
                 affectedPaths = listOf(path)
             )
         } else {
-            ToolResult.Ok(summaryForModel = content, affectedPaths = listOf(path))
+            ToolResult.Ok(summaryForModel = content + meta, affectedPaths = listOf(path))
         }
     }
 

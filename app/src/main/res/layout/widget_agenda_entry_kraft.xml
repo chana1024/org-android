@@ -1,0 +1,1032 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- KRAFT LEDGER twin of widget_agenda_entry.xml — structure and view IDs are IDENTICAL; only colors/drawables differ. Any structural edit must be applied to BOTH files. Generated from the classic original by palette substitution. Habit cell/marker drawables are intentionally SHARED with Classic (shapes+colors unchanged); only row/badge/pomodoro surfaces are kraft. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_agenda_entry_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/widget_agenda_entry_background_kraft"
+    android:gravity="center_vertical"
+    android:minHeight="36dp"
+    android:orientation="vertical"
+    android:paddingStart="6dp"
+    android:paddingEnd="8dp"
+    android:paddingTop="2dp"
+    android:paddingBottom="2dp">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="36dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+        <TextView
+            android:id="@+id/widget_agenda_entry_indent"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#5A5446"
+            android:textSize="12sp" />
+        <TextView
+            android:id="@+id/widget_agenda_entry_todo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/widget_todo_bg_kraft"
+            android:gravity="center"
+            android:minWidth="34dp"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
+            android:textColor="#34302A"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+        <TextView
+            android:id="@+id/widget_agenda_entry_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#26231D"
+            android:textSize="12sp" />
+        <TextView
+            android:id="@+id/widget_agenda_entry_date"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#5A5446"
+            android:textSize="9sp" />
+        <!-- Per-entry pomodoro trigger, mirroring the in-app row's timer
+             button. Its fill-in intent (set by the factory) carries the
+             exact row identity plus a flag DISTINCT from the root-open and
+             TODO-chooser fill-ins, so a timer tap can never open the file
+             editor or the keyword dialog. Baked launcher-safe drawables;
+             the title keeps its weight and ellipsizes. -->
+        <ImageView
+            android:id="@+id/widget_agenda_entry_pomodoro"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/widget_pomodoro_button_background_kraft"
+            android:contentDescription="为此条目启动番茄钟"
+            android:padding="5dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/widget_pomodoro_icon" />
+    </LinearLayout>
+    <!-- WAIT 等待原因 summary: the current note's first line or two, subdued
+         under the title, visible ONLY on WAIT rows that carry a note (the
+         factory flips visibility per row). No own click handler — taps ride
+         the root's existing fill-in intent, same as the title itself. Kept
+         to maxLines=2 and 9sp so a long reason can never balloon the card;
+         marginStart aligns it under the title, past the badge column. -->
+    <TextView
+        android:id="@+id/widget_agenda_entry_wait_reason"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="40dp"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:textColor="#5A5446"
+        android:textSize="9sp"
+        android:visibility="gone" />
+    <!-- Habit consistency strip: 21 days before today + today + 7 after, one
+         weighted cell per day (mirrors HabitConsistencyGraph in AgendaScreen:
+         face-colored cell, dimmed past/future at 30%, done = centered 5dp dot,
+         today = full-cell two-tone outline + a caret cue directly beneath the
+         today cell so the current day is findable at widget scale; reliably
+         missed days = brick-red widget_habit_missed fill + two-tone × marker).
+         Only launcher-safe RemoteViews operations are used:
+         setImageViewResource / setViewVisibility / setContentDescription per
+         cell. Marker ImageViews span the whole cell; each marker drawable
+         carries its own geometry. -->
+    <LinearLayout
+        android:id="@+id/widget_agenda_habit_graph"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:orientation="vertical"
+        android:visibility="gone">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="12dp"
+            android:orientation="horizontal">
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_00"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_00"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_01"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_01"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_02"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_02"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_03"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_03"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_04"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_04"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_05"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_05"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_06"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_06"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_07"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_07"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_08"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_08"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_09"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_09"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_10"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_10"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_11"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_11"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_12"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_12"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_13"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_13"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_14"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_14"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_15"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_15"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_16"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_16"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_17"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_17"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_18"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_18"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_19"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_19"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_20"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_20"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_21"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_21"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_22"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_22"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_23"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_23"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_24"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_24"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_25"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_25"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_26"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_26"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_27"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_27"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1">
+            <ImageView
+                android:id="@+id/widget_habit_cell_28"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_clear_dim" />
+            <ImageView
+                android:id="@+id/widget_habit_marker_28"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:src="@drawable/widget_habit_marker_done"
+                android:visibility="gone" />
+        </FrameLayout>
+        </LinearLayout>
+        <!-- Today cue row: same weighted slots as the cells above, so the
+             single revealed caret (set by the factory) lands directly under
+             the TODAY cell. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="10dp"
+            android:layout_marginTop="1dp"
+            android:orientation="horizontal">
+        <TextView
+            android:id="@+id/widget_habit_today_cue_00"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_01"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_02"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_03"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_04"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_05"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_06"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_07"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_08"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_09"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_10"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_11"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_12"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_13"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_14"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_15"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_16"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_17"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_18"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_19"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_20"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_21"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_22"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_23"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_24"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_25"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_26"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_27"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        <TextView
+            android:id="@+id/widget_habit_today_cue_28"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="1dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="&#9650;"
+            android:textColor="#26231D"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:visibility="invisible" />
+        </LinearLayout>
+    </LinearLayout>
+    <TextView
+        android:id="@+id/widget_agenda_habit_summary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="#5A5446"
+        android:textSize="9sp"
+        android:visibility="gone" />
+</LinearLayout>

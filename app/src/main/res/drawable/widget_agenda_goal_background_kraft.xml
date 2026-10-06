@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- KRAFT LEDGER twin of widget_agenda_goal_background.xml — 总目标 pill on
+     the small-overlay #EEEAE0, ink ripple (primary #34302A @33%). -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#5534302A">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#EEEAE0" />
+            <corners android:radius="20dp" />
+        </shape>
+    </item>
+</ripple>

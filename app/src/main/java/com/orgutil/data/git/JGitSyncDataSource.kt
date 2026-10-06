@@ -13,6 +13,7 @@ import org.eclipse.jgit.api.MergeResult
 import org.eclipse.jgit.api.Status
 import org.eclipse.jgit.api.errors.GitAPIException
 import org.eclipse.jgit.dircache.DirCacheEntry
+import org.eclipse.jgit.errors.LockFailedException
 import org.eclipse.jgit.lib.ConfigConstants
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.FileMode
@@ -472,20 +473,53 @@ class JGitSyncDataSource @Inject constructor(
         return UsernamePasswordCredentialsProvider(user, token)
     }
 
-    private fun mapException(e: Throwable): Exception = when {
-        e is IllegalStateException -> e
-        e.message?.contains("401", ignoreCase = true) == true ||
-            e.message?.contains("403", ignoreCase = true) == true ->
-            IllegalStateException("Authentication failed - check username/token", e)
-        e.message?.contains("not a git", ignoreCase = true) == true ->
-            IllegalStateException("Not a git repository", e)
-        e.message?.contains("UnknownHost", ignoreCase = true) == true ||
-            e.message?.contains("Unable to resolve host", ignoreCase = true) == true ||
-            e.message?.contains("connection", ignoreCase = true) == true ->
-            IllegalStateException("Network error: ${e.message}", e)
-        e is GitAPIException -> IllegalStateException("Git error: ${e.message}", e)
-        e is Exception -> e
-        else -> IllegalStateException(e.message ?: "Git sync failed", e)
+    /**
+     * First [LockFailedException] in the cause chain, or null; depth is
+     * capped because cause chains can be cyclic. A lock file left behind by
+     * a killed sync is never deleted automatically: its age proves nothing,
+     * another git process (Termux, desktop git) may still hold it, so
+     * removal stays a manual decision.
+     */
+    private fun findLockFailure(e: Throwable?, maxDepth: Int = 8): LockFailedException? {
+        var current = e
+        var depth = 0
+        while (current != null && depth < maxDepth) {
+            if (current is LockFailedException) return current
+            current = current.cause
+            depth++
+        }
+        return null
+    }
+
+    private fun mapException(e: Throwable): Exception {
+        findLockFailure(e)?.let { lock ->
+            return IllegalStateException(
+                "Git lock error: ${lock.message}\n" +
+                    "A previous sync was likely interrupted and left a lock file behind. " +
+                    "The app deliberately never deletes git locks automatically - another git process may still hold it.\n" +
+                    "Manual recovery:\n" +
+                    "1. Stop syncing in the app and close other git tools/Termux sessions working on the notes folder.\n" +
+                    "2. Back up the notes folder.\n" +
+                    "3. From a desktop or Termux, run 'git status' in the repo.\n" +
+                    "4. Only when certain no git process is running, delete the lock file named above (e.g. .git/index.lock).",
+                e
+            )
+        }
+        return when {
+            e is IllegalStateException -> e
+            e.message?.contains("401", ignoreCase = true) == true ||
+                e.message?.contains("403", ignoreCase = true) == true ->
+                IllegalStateException("Authentication failed - check username/token", e)
+            e.message?.contains("not a git", ignoreCase = true) == true ->
+                IllegalStateException("Not a git repository", e)
+            e.message?.contains("UnknownHost", ignoreCase = true) == true ||
+                e.message?.contains("Unable to resolve host", ignoreCase = true) == true ||
+                e.message?.contains("connection", ignoreCase = true) == true ->
+                IllegalStateException("Network error: ${e.message}", e)
+            e is GitAPIException -> IllegalStateException("Git error: ${e.message}", e)
+            e is Exception -> e
+            else -> IllegalStateException(e.message ?: "Git sync failed", e)
+        }
     }
 
     companion object {

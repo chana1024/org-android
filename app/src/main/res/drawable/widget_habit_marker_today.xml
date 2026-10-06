@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TODAY: high-contrast two-tone outline around the entire cell (white
+     halo + dark core), spanning the cell like the in-app graph's border so
+     it cannot be mistaken for the small centered done dot. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/widget_habit_today_outline_white" />
+    <item
+        android:drawable="@drawable/widget_habit_today_outline_dark"
+        android:top="1dp"
+        android:bottom="1dp"
+        android:left="1dp"
+        android:right="1dp" />
+</layer-list>

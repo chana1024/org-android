@@ -21,19 +21,25 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.orgutil.ui.theme.OrgUtilTheme
+import com.orgutil.ui.theme.ThemeController
 import com.orgutil.ui.viewmodel.CaptureViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class QuickCaptureActivity : ComponentActivity() {
-    
+
+    // Widget-launched dialog follows the same persisted palette as the app
+    // and the home-screen widgets.
+    @Inject lateinit var themeController: ThemeController
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         setContent {
-            OrgUtilTheme {
+            OrgUtilTheme(choice = themeController.current) {
                 QuickCaptureDialog(
                     onDismiss = { finish() },
                     onCapture = { content ->

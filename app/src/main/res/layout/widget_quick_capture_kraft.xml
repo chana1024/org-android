@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- KRAFT LEDGER twin of widget_quick_capture.xml — structure and view IDs are IDENTICAL; only colors/drawables differ. Any structural edit must be applied to BOTH files. Generated from the classic original by palette substitution.  -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background_kraft"
+    android:padding="4dp">
+
+    <!-- Central Icon Button -->
+    <FrameLayout
+        android:id="@+id/widget_capture_button"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/widget_button_compact_kraft"
+        android:clickable="true"
+        android:focusable="true"
+        android:layout_margin="2dp">
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_edit_24"
+            android:tint="#F2EEE4"
+            android:layout_gravity="center"
+            android:contentDescription="快速记录" />
+
+    </FrameLayout>
+
+</FrameLayout>

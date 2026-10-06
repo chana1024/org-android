@@ -14,7 +14,12 @@ import androidx.room.PrimaryKey
  * - [riskLevel]: the tool's risk tier at call time;
  * - [approvalState]: PENDING / APPROVED / DENIED / VOIDED (null for plain
  *   text messages and for AUTO-mode runs, where no approval ever happens);
- * - [decisionSource]: why it ran (user once, session grant, AUTO policy).
+ * - [decisionSource]: why it ran (user once, session grant, AUTO policy);
+ * - [nativeBlocksJson]: assistant rows only - the provider's own content
+ *   blocks / output items verbatim when the turn contained HOSTED search
+ *   (server_tool_use / web_search_tool_result incl. encrypted_content, or
+ *   Responses output items). Replayed exactly on the next turn; null for
+ *   ordinary turns.
  */
 @Entity(tableName = "chat_message")
 data class ChatMessageEntity(
@@ -31,5 +36,6 @@ data class ChatMessageEntity(
     val approvalState: String? = null,
     val decisionSource: String? = null,
     val isStreaming: Boolean = false,
-    val createdAt: Long
+    val createdAt: Long,
+    val nativeBlocksJson: String? = null
 )

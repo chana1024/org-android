@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- KRAFT LEDGER twin of widget_agenda_section.xml — structure and view IDs are IDENTICAL; only colors/drawables differ. Any structural edit must be applied to BOTH files. Generated from the classic original by palette substitution. The section COUNT uses the darker secondary #524C3E (not #5A5446) because it sits on the #C8C1B1 header token and must clear 4.5:1. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/widget_agenda_section_background_kraft"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:minHeight="38dp"
+    android:paddingStart="10dp"
+    android:paddingEnd="10dp">
+    <TextView
+        android:id="@+id/widget_agenda_section_title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="#26231D"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+    <TextView
+        android:id="@+id/widget_agenda_section_count"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#524C3E"
+        android:textSize="11sp" />
+</LinearLayout>

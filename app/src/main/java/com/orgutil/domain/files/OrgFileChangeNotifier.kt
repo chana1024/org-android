@@ -1,5 +1,6 @@
 package com.orgutil.domain.files
 
+import com.orgutil.widget.AgendaWidgetUpdater
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -13,7 +14,9 @@ import javax.inject.Singleton
  * agenda - collect [changes] and reload.
  */
 @Singleton
-class OrgFileChangeNotifier @Inject constructor() {
+class OrgFileChangeNotifier @Inject constructor(
+    private val widgetUpdater: AgendaWidgetUpdater
+) {
 
     private val _changes = MutableSharedFlow<Unit>(
         extraBufferCapacity = 16,
@@ -23,5 +26,6 @@ class OrgFileChangeNotifier @Inject constructor() {
 
     fun notifyChanged() {
         _changes.tryEmit(Unit)
+        widgetUpdater.refreshAgenda()
     }
 }

@@ -1,5 +1,6 @@
 package com.orgutil.data.mapper
 
+import com.orgutil.domain.agenda.OrgAgendaParser
 import com.orgutil.domain.model.OrgDocument
 import com.orgutil.domain.model.OrgNode
 import com.orgzly.org.OrgHead
@@ -22,16 +23,17 @@ class OrgParserWrapper @Inject constructor() {
             val builder = OrgParser.Builder()
             builder.setInput(content)
             
-            // Keep the viewer aligned with the GTD/PARA agenda keyword set.
-            builder.setTodoKeywords(arrayOf("TODO", "NEXT", "WAIT", "HOLD", "PROJ", "AREA", "MAYBE"))
-            builder.setDoneKeywords(arrayOf("DONE", "CANCELLED", "DROPPED"))
+            // Keep the viewer aligned with the GTD/PARA agenda keyword set —
+            // single source of truth is OrgAgendaParser's ordered sequence.
+            builder.setTodoKeywords(OrgAgendaParser.NOT_DONE_KEYWORDS.toTypedArray())
+            builder.setDoneKeywords(OrgAgendaParser.DONE_KEYWORDS.toTypedArray())
             
             val parser = builder.build()
             val parsedFile: OrgParsedFile = parser.parse()
-            
+
             // Build hierarchical structure
-            val nodes = buildHierarchicalStructure(parsedFile.headsInList)
-            
+            val nodes = buildHierarchicalStructure(parsedFile.headsInList, content)
+
             Pair(preamble, nodes)
         } catch (e: IOException) {
             // If parsing fails, return empty list and raw content as preamble
@@ -106,14 +108,19 @@ class OrgParserWrapper @Inject constructor() {
         return preambleLines.joinToString("\n").trim()
     }
 
-    private fun buildHierarchicalStructure(nodesList: List<OrgNodeInList>): List<OrgNode> {
+    private fun buildHierarchicalStructure(nodesList: List<OrgNodeInList>, content: String): List<OrgNode> {
         if (nodesList.isEmpty()) return emptyList()
-        
+
+        // Verified (sourceOffset, titleOffset) per heading, in document
+        // order — the identity the per-heading source actions rely on.
+        val identities = resolveHeadingIdentities(nodesList, content)
+
         val result = mutableListOf<OrgNode>()
         val stack = mutableListOf<Pair<OrgNode, MutableList<OrgNode>>>()
-        
-        for (nodeInList in nodesList) {
-            val currentNode = mapOrgNodeInListToOrgNode(nodeInList)
+
+        for ((index, nodeInList) in nodesList.withIndex()) {
+            val (sourceOffset, titleOffset) = identities[index]
+            val currentNode = mapOrgNodeInListToOrgNode(nodeInList, sourceOffset, titleOffset)
             val currentLevel = nodeInList.level
             
             // Pop nodes from stack that are not ancestors of current node
@@ -164,16 +171,119 @@ class OrgParserWrapper @Inject constructor() {
         return result
     }
 
-    private fun mapOrgNodeInListToOrgNode(nodeInList: OrgNodeInList): OrgNode {
+    private fun mapOrgNodeInListToOrgNode(
+        nodeInList: OrgNodeInList,
+        sourceOffset: Int,
+        titleOffset: Int
+    ): OrgNode {
         val head = nodeInList.head
+        val content = head.content ?: ""
         return OrgNode(
             level = nodeInList.level,
             title = head.title ?: "",
-            content = head.content ?: "",
+            content = content,
             tags = head.tags?.toList() ?: emptyList(),
             todo = head.state,
             priority = head.priority,
-            children = emptyList() // Will be populated by buildHierarchicalStructure
+            children = emptyList(), // Will be populated by buildHierarchicalStructure
+            sourceOffset = sourceOffset,
+            titleOffset = titleOffset,
+            // orgzly consumes the own :PROPERTIES: drawer and the SCHEDULED
+            // planning line out of head.content (into head.properties /
+            // head.scheduled), so read them from the parsed fields first;
+            // the content regexes stay as fallback for anything orgzly
+            // leaves unconsumed.
+            isHabitStyle = head.hasHabitStyleProperty() || content.hasProperty("STYLE", "habit"),
+            hasRepeatingScheduled = head.hasRepeatingScheduled() ||
+                SCHEDULED_REPEATER_REGEX.containsMatchIn(content)
+        )
+    }
+
+    /** STYLE=habit in orgzly's parsed own-properties map. */
+    private fun OrgHead.hasHabitStyleProperty(): Boolean =
+        properties?.get("STYLE")?.trim()?.equals("habit", ignoreCase = true) == true
+
+    /** The orgzly-parsed own SCHEDULED timestamp carries a repeater. */
+    private fun OrgHead.hasRepeatingScheduled(): Boolean =
+        scheduled?.startTime?.hasRepeater() == true
+
+    /**
+     * Zips the raw headline scan with orgzly's flat node list (both are in
+     * document order) and verifies each pair: same star count and a title
+     * occurrence whose preceding tokens are exactly the parsed keyword and
+     * priority. Any heading that cannot be verified keeps (-1, -1) so no
+     * source-level action is ever offered for it; a count mismatch between
+     * the scan and orgzly disables identity for the whole file rather than
+     * risk shifting offsets onto wrong headings.
+     */
+    private fun resolveHeadingIdentities(
+        nodesList: List<OrgNodeInList>,
+        content: String
+    ): List<Pair<Int, Int>> {
+        val unknown = -1 to -1
+        val matches = HEADLINE_REGEX.findAll(content).toList()
+        if (matches.size != nodesList.size) return List(nodesList.size) { unknown }
+
+        return nodesList.mapIndexed { index, nodeInList ->
+            val match = matches[index]
+            if (match.groupValues[1].length != nodeInList.level) return@mapIndexed unknown
+
+            val head = nodeInList.head
+            val title = head.title.orEmpty()
+            val remainderStart = match.groups[2]?.range?.first ?: return@mapIndexed unknown
+            val lineEnd = content.indexOf('\n', startIndex = remainderStart)
+                .let { if (it == -1) content.length else it }
+            val prefixTokens = buildList {
+                head.state?.let { add(it) }
+                head.priority?.let { add("[#$it]") }
+            }
+
+            // The first on-line title occurrence preceded by exactly the
+            // parsed keyword/priority tokens is the real title start (guards
+            // against the title being a substring of an earlier token).
+            var searchFrom = remainderStart
+            var resolved = unknown
+            if (title.isNotEmpty()) {
+                while (searchFrom < lineEnd) {
+                    val at = content.indexOf(title, searchFrom)
+                    if (at < 0 || at + title.length > lineEnd) break
+                    val actualPrefix = content.substring(remainderStart, at).trim()
+                        .split(WHITESPACE_REGEX).filter { it.isNotBlank() }
+                    if (actualPrefix == prefixTokens) {
+                        resolved = match.range.first to at
+                        break
+                    }
+                    searchFrom = at + 1
+                }
+            }
+            resolved
+        }
+    }
+
+    /** Own-drawer property lookup on the heading's raw content block. */
+    private fun String.hasProperty(key: String, expectedValue: String): Boolean {
+        val drawer = OWN_PROPERTIES_DRAWER_REGEX.find(this)?.value ?: return false
+        val value = OWN_PROPERTY_LINE_REGEX.findAll(drawer)
+            .firstOrNull { it.groupValues[1].equals(key, ignoreCase = true) }
+            ?.groupValues?.get(2)?.trim() ?: return false
+        return value.equals(expectedValue, ignoreCase = true)
+    }
+
+    private companion object {
+        /** Mirrors OrgAgendaParser.HEADLINE_REGEX — the same scan the agenda runs. */
+        val HEADLINE_REGEX = Regex("""(?m)^(\*+)\s+(.+)$""")
+        val WHITESPACE_REGEX = Regex("\\s+")
+
+        /** Both drawer patterns mirror OrgAgendaParser so the viewer reads
+         * exactly the regions the habit parser reads. */
+        val OWN_PROPERTIES_DRAWER_REGEX = Regex(
+            """(?ms)^[ \t]*:PROPERTIES:[ \t]*\r?\n(.*?)[ \t]*:END:"""
+        )
+        val OWN_PROPERTY_LINE_REGEX = Regex("""(?m)^[ \t]*:([A-Za-z0-9_-]+):[ \t]*(.*)$""")
+
+        /** Own SCHEDULED line carrying a repeater, e.g. ".+1w", "++1m", "+2d/5d". */
+        val SCHEDULED_REPEATER_REGEX = Regex(
+            """(?m)^[ \t]*SCHEDULED:[ \t]*<[^>\n]*?(\.\+|\+\+|\+)\d+[dwmy](?:\s*/\s*\d+[dwmy])?[^>\n]*>"""
         )
     }
 

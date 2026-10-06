@@ -6,6 +6,8 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.orgutil.domain.indexing.FileIndexRequestResult
 import com.orgutil.domain.indexing.FileIndexScheduler
+import com.orgutil.domain.gcal.GcalScheduler
+import com.orgutil.domain.gcal.GcalSyncRequestResult
 import com.orgutil.domain.sync.GitSyncRequestResult
 import com.orgutil.domain.sync.GitSyncScheduler
 import dagger.hilt.android.HiltAndroidApp
@@ -23,6 +25,9 @@ class OrgUtilApplication: Application(), Configuration.Provider {
     @Inject
     lateinit var gitSyncScheduler: GitSyncScheduler
 
+    @Inject
+    lateinit var gcalScheduler: GcalScheduler
+
     override val workManagerConfiguration: Configuration
         get() {
             safeLogD("OrgUtilApplication", "Creating WorkManager configuration with HiltWorkerFactory. Factory injected: ${::workerFactory.isInitialized}")
@@ -37,6 +42,7 @@ class OrgUtilApplication: Application(), Configuration.Provider {
         safeLogD("OrgUtilApplication", "Application onCreate called")
         setupFileIndexer()
         scheduleStartupSync()
+        ensureGcalPeriodicSync()
     }
 
     private fun setupFileIndexer() {
@@ -47,6 +53,21 @@ class OrgUtilApplication: Application(), Configuration.Provider {
             }
             is FileIndexRequestResult.Failed -> {
                 safeLogE("OrgUtilApplication", "Failed to setup FileIndexer worker: ${result.message}")
+            }
+        }
+    }
+
+    /** Re-arms the 30-minute Google Calendar sync when enabled+authorized. */
+    private fun ensureGcalPeriodicSync() {
+        when (val result = gcalScheduler.ensurePeriodicSync()) {
+            GcalSyncRequestResult.Enqueued -> {
+                safeLogD("OrgUtilApplication", "Google Calendar periodic sync scheduled")
+            }
+            GcalSyncRequestResult.NotConfigured -> {
+                safeLogD("OrgUtilApplication", "Google Calendar sync not enabled; skipped periodic scheduling")
+            }
+            is GcalSyncRequestResult.Failed -> {
+                safeLogE("OrgUtilApplication", "Failed to schedule Google Calendar sync: ${result.message}")
             }
         }
     }

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget entry pomodoro button: light-teal rounded chip (same family as
+     the widget header timer card #DCEFEB), sized for the 36dp entry row. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#DCEFEB" />
+    <corners android:radius="8dp" />
+</shape>

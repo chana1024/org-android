@@ -1,5 +1,6 @@
 package com.orgutil.ui.screens
 
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -8,6 +9,7 @@ import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -37,6 +39,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.orgutil.R
+import com.orgutil.data.datasource.ThemeChoice
+import com.orgutil.domain.gcal.GcalSyncStatus
 import com.orgutil.domain.sync.GitSyncStatus
 import com.orgutil.ui.components.OrgTopBar
 import com.orgutil.ui.components.OrgTopBarIcon
@@ -84,7 +88,28 @@ fun SyncScreen(
         viewModel.refresh()
     }
 
+    // Google Calendar consent: AuthorizationClient hands back a PendingIntent
+    // that only a foreground activity may launch; the ViewModel routes it here.
+    val gcalConsentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        viewModel.onGcalConsentResult(
+            result.resultCode == Activity.RESULT_OK,
+            result.data
+        )
+    }
+    LaunchedEffect(viewModel) {
+        viewModel.gcalConsentRequests.collect { pendingIntent ->
+            runCatching {
+                gcalConsentLauncher.launch(
+                    IntentSenderRequest.Builder(pendingIntent.intentSender).build()
+                )
+            }.onFailure { viewModel.onGcalConsentLaunchFailed() }
+        }
+    }
+
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             OrgTopBar(
                 title = stringResource(R.string.sync_title),
@@ -181,6 +206,30 @@ fun SyncScreen(
                 )
             }
 
+            // Appearance (外观): selectable color palette. Classic is the
+            // historical default; Kraft Ledger (牛皮账本) is the kraft-paper
+            // palette. Selecting persists the choice, restyles the whole app
+            // on the same frame, and broadcasts a full Agenda-widget refresh
+            // (rows, badges and habit cells rebuilt) plus the Quick Capture
+            // widget re-layout.
+            val themeChoice by viewModel.themeChoice.collectAsState()
+            ConfigCard(title = stringResource(R.string.appearance_section)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ThemeChoice.entries.forEach { choice ->
+                        FilterChip(
+                            selected = themeChoice == choice,
+                            onClick = { viewModel.selectTheme(choice) },
+                            label = { Text(stringResource(choice.labelRes)) }
+                        )
+                    }
+                }
+                Text(
+                    text = stringResource(R.string.appearance_theme_hint),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
             // Repository
             ConfigCard(title = stringResource(R.string.sync_repo_section)) {
                 Text(
@@ -266,6 +315,18 @@ fun SyncScreen(
                         onCheckedChange = viewModel::setAutoSyncEnabled
                     )
                 }
+            }
+
+            // Google Calendar (one-way GTD -> calendar)
+            ConfigCard(title = stringResource(R.string.sync_calendar_section)) {
+                GoogleCalendarSection(
+                    uiState = uiState,
+                    onConnect = { viewModel.connectGcal(context) },
+                    onReauthorize = { viewModel.connectGcal(context) },
+                    onSyncNow = viewModel::requestGcalSync,
+                    onAutoSyncChange = viewModel::setGcalAutoSyncEnabled,
+                    onDisconnect = { viewModel.disconnectGcal(context) }
+                )
             }
         }
     }
@@ -526,5 +587,167 @@ private fun ConfigCard(
             )
             content()
         }
+    }
+}
+
+/**
+ * One-way GTD -> Google Calendar sync section: connection state, last sync
+ * result, Sync now, the 30-minute auto-sync toggle, and Disconnect/revoke.
+ * Authorization-required is an actionable state (Reauthorize button) because
+ * consent can never be launched from the background worker.
+ */
+@Composable
+private fun GoogleCalendarSection(
+    uiState: com.orgutil.ui.viewmodel.SyncUiState,
+    onConnect: () -> Unit,
+    onReauthorize: () -> Unit,
+    onSyncNow: () -> Unit,
+    onAutoSyncChange: (Boolean) -> Unit,
+    onDisconnect: () -> Unit
+) {
+    // Connection line
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (uiState.isGcalAuthBusy) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                strokeWidth = 2.dp
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+        Text(
+            text = when {
+                !uiState.gcalPlayServicesAvailable -> stringResource(R.string.sync_calendar_no_play_services)
+                uiState.gcalNeedsAuthorization -> stringResource(R.string.sync_calendar_needs_reauth_short)
+                uiState.gcalAuthorized -> stringResource(R.string.sync_calendar_connected)
+                else -> stringResource(R.string.sync_calendar_not_connected)
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = when {
+                !uiState.gcalPlayServicesAvailable || uiState.gcalNeedsAuthorization ->
+                    MaterialTheme.colorScheme.error
+                uiState.gcalAuthorized -> MaterialTheme.colorScheme.primary
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            }
+        )
+    }
+
+    if (!uiState.gcalPlayServicesAvailable) {
+        Text(
+            text = stringResource(R.string.sync_calendar_no_play_services_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error
+        )
+    }
+
+    if (!uiState.gcalAuthorized) {
+        Text(
+            text = stringResource(R.string.sync_calendar_scope_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Button(onClick = onConnect, enabled = !uiState.isGcalBusy) {
+            Text(stringResource(R.string.sync_calendar_connect))
+        }
+        return
+    }
+
+    // Live status + last result
+    val status = uiState.gcalStatus
+    when (status) {
+        is GcalSyncStatus.Running -> Text(
+            text = stringResource(R.string.sync_calendar_status_running, status.step),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary
+        )
+        is GcalSyncStatus.Enqueued -> Text(
+            text = stringResource(R.string.sync_calendar_status_queued),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary
+        )
+        is GcalSyncStatus.NeedsAuthorization -> Text(
+            text = stringResource(R.string.sync_calendar_needs_reauth),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error
+        )
+        is GcalSyncStatus.Failed -> Text(
+            text = stringResource(R.string.sync_status_failed, status.message),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error
+        )
+        else -> Unit // idle: last-result lines below carry the state
+    }
+    if (status is GcalSyncStatus.NeedsAuthorization) {
+        Button(onClick = onReauthorize, enabled = !uiState.isGcalBusy) {
+            Text(stringResource(R.string.sync_calendar_reauthorize))
+        }
+    }
+
+    val meta = buildString {
+        if (uiState.gcalLastSyncTime > 0) {
+            append(
+                SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
+                    .format(Date(uiState.gcalLastSyncTime))
+            )
+        } else {
+            append(stringResource(R.string.sync_calendar_last_none))
+        }
+        append(" · ")
+        append(stringResource(R.string.sync_calendar_tracked, uiState.gcalTrackedCount))
+    }
+    Text(
+        text = meta,
+        style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    uiState.gcalLastDetail?.let { detail ->
+        Text(
+            text = detail,
+            style = MaterialTheme.typography.labelSmall.copy(fontFamily = OrgMono),
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+    if (uiState.gcalLastError != null && status !is GcalSyncStatus.Failed &&
+        status !is GcalSyncStatus.NeedsAuthorization
+    ) {
+        Text(
+            text = uiState.gcalLastError ?: "",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error
+        )
+    }
+
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Button(onClick = onSyncNow, enabled = !uiState.isGcalBusy) {
+            Text(stringResource(R.string.sync_calendar_sync_now))
+        }
+        OutlinedButton(
+            onClick = onDisconnect,
+            enabled = !uiState.isGcalBusy,
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = MaterialTheme.colorScheme.error
+            )
+        ) {
+            Text(stringResource(R.string.sync_calendar_disconnect))
+        }
+    }
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.sync_calendar_auto),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = stringResource(R.string.sync_calendar_auto_hint),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(
+            checked = uiState.gcalAutoSyncEnabled,
+            onCheckedChange = onAutoSyncChange
+        )
     }
 }

@@ -1,14 +1,15 @@
 package com.orgutil.data.agent.tools
 
 import com.orgutil.data.agent.AgentPathResolver
+import com.orgutil.data.repository.SkillRunStore
 import com.orgutil.domain.chat.RiskLevel
 import com.orgutil.domain.chat.ToolArgumentException
+import com.orgutil.domain.chat.ToolExecutionContext
 import com.orgutil.domain.chat.ToolPolicy
 import com.orgutil.domain.chat.ToolResult
 import com.orgutil.domain.model.OrgDocument
 import com.orgutil.domain.repository.OrgFileRepository
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
 import javax.inject.Inject
 
 /**
@@ -17,16 +18,24 @@ import javax.inject.Inject
  * they run immediately with no limits - the write path itself always keeps
  * the repository's read-back verification and index sync, which are
  * consistency flow, not approvals.
+ *
+ * /org runs disable these tools NATIVELY (not just by instruction text):
+ * while an org-integrate invocation governs the session, every direct note
+ * edit refuses so nothing can bypass org_integrate's verified write +
+ * cleanup coordination. The restriction is per-run and derived from the
+ * persisted transcript, so it holds across resume and cannot leak into
+ * later, unrelated runs.
  */
 
 class OrgWriteFileTool @Inject constructor(
     private val orgFileRepository: OrgFileRepository,
-    private val pathResolver: AgentPathResolver
+    private val pathResolver: AgentPathResolver,
+    private val skillRunStore: SkillRunStore
 ) : BaseAgentTool() {
 
     override val name = "org_write_file"
     override val description =
-        "Replaces the entire content of an existing .org file. Read the file first if you need to preserve content. The write is verified by read-back before it is reported as done."
+        "Replaces the entire content of an existing .org file. Read the file first if you need to preserve content. The write is verified by read-back before it is reported as done. Disabled during an active /org run - use org_integrate there."
     override val parametersSchema = objectSchema(
         "path" to "Relative path of the existing file",
         "content" to "The complete new file content"
@@ -60,16 +69,22 @@ class OrgWriteFileTool @Inject constructor(
             onFailure = { ToolResult.Error("Write failed: ${it.message}", affectedPaths = listOf(path)) }
         )
     }
+
+    override suspend fun execute(args: JsonObject, context: ToolExecutionContext): ToolResult {
+        skillRunStore.assertOrgRunAllowsDirectEdits(context.sessionId)
+        return execute(args)
+    }
 }
 
 class OrgCreateFileTool @Inject constructor(
     private val orgFileRepository: OrgFileRepository,
-    private val pathResolver: AgentPathResolver
+    private val pathResolver: AgentPathResolver,
+    private val skillRunStore: SkillRunStore
 ) : BaseAgentTool() {
 
     override val name = "org_create_file"
     override val description =
-        "Creates a new .org file at the given relative path (parent directories must already exist; .org suffix is added automatically if missing)."
+        "Creates a new .org file at the given relative path (parent directories must already exist; .org suffix is added automatically if missing). Disabled during an active /org run - use org_integrate there."
     override val parametersSchema = objectSchema(
         "path" to "Relative path for the new file",
         "content" to "Initial content"
@@ -112,16 +127,22 @@ class OrgCreateFileTool @Inject constructor(
             onFailure = { ToolResult.Error("Create failed: ${it.message}", affectedPaths = listOf(path)) }
         )
     }
+
+    override suspend fun execute(args: JsonObject, context: ToolExecutionContext): ToolResult {
+        skillRunStore.assertOrgRunAllowsDirectEdits(context.sessionId)
+        return execute(args)
+    }
 }
 
 class OrgDeleteFileTool @Inject constructor(
     private val orgFileRepository: OrgFileRepository,
-    private val pathResolver: AgentPathResolver
+    private val pathResolver: AgentPathResolver,
+    private val skillRunStore: SkillRunStore
 ) : BaseAgentTool() {
 
     override val name = "org_delete_file"
     override val description =
-        "PERMANENTLY deletes a .org file. There is no trash can and no undo inside the app; recovery is only possible from a prior git commit. Confirm the exact path with the user unless running in full-auto mode."
+        "PERMANENTLY deletes a .org file. There is no trash can and no undo inside the app; recovery is only possible from a prior git commit. Confirm the exact path with the user unless running in full-auto mode. Disabled during an active /org run - source cleanup is coordinated by org_integrate."
     override val parametersSchema = objectSchema("path" to "Relative path of the file to delete")
     override val policy = ToolPolicy(risk = RiskLevel.HIGH, sessionGrantAllowed = false)
 
@@ -140,16 +161,22 @@ class OrgDeleteFileTool @Inject constructor(
             onFailure = { ToolResult.Error("Delete failed: ${it.message}", affectedPaths = listOf(path)) }
         )
     }
+
+    override suspend fun execute(args: JsonObject, context: ToolExecutionContext): ToolResult {
+        skillRunStore.assertOrgRunAllowsDirectEdits(context.sessionId)
+        return execute(args)
+    }
 }
 
 class OrgRenameFileTool @Inject constructor(
     private val orgFileRepository: OrgFileRepository,
-    private val pathResolver: AgentPathResolver
+    private val pathResolver: AgentPathResolver,
+    private val skillRunStore: SkillRunStore
 ) : BaseAgentTool() {
 
     override val name = "org_rename_file"
     override val description =
-        "Renames a .org file in place (same directory). Search index entries are updated for the old and new names."
+        "Renames a .org file in place (same directory). Search index entries are updated for the old and new names. Disabled during an active /org run."
     override val parametersSchema = objectSchema(
         "path" to "Relative path of the existing file",
         "newName" to "New file name (with .org extension), no directory part"
@@ -181,5 +208,10 @@ class OrgRenameFileTool @Inject constructor(
             },
             onFailure = { ToolResult.Error("Rename failed: ${it.message}", affectedPaths = listOf(path)) }
         )
+    }
+
+    override suspend fun execute(args: JsonObject, context: ToolExecutionContext): ToolResult {
+        skillRunStore.assertOrgRunAllowsDirectEdits(context.sessionId)
+        return execute(args)
     }
 }

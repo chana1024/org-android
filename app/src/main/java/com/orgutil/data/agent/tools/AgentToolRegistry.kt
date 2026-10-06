@@ -19,13 +19,15 @@ class AgentToolRegistry @Inject constructor(
     createFile: OrgCreateFileTool,
     deleteFile: OrgDeleteFileTool,
     renameFile: OrgRenameFileTool,
-    gitSync: GitSyncTool
+    archiveDone: OrgArchiveDoneTool,
+    gitSync: GitSyncTool,
+    orgIntegrate: OrgIntegrateTool
 ) : com.orgutil.domain.chat.AgentToolCatalog {
 
     override val tools: List<AgentTool> = listOf(
         listFiles, search, readFile, parseOutline,
         writeFile, createFile, deleteFile, renameFile,
-        gitSync
+        archiveDone, gitSync, orgIntegrate
     )
 
     override fun byName(name: String): AgentTool? = tools.find { it.name == name }

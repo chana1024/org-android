@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- KRAFT LEDGER twin of widget_agenda_refresh_background.xml — refresh
+     button on the small-overlay #EEEAE0, ink ripple. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#5534302A">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#EEEAE0" />
+        </shape>
+    </item>
+</ripple>

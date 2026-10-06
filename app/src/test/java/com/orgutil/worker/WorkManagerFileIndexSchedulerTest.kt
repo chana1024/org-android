@@ -73,6 +73,7 @@ class WorkManagerFileIndexSchedulerTest {
         var periodicName: String? = null
         var periodicPolicy: ExistingPeriodicWorkPolicy? = null
         var periodicRequest: PeriodicWorkRequest? = null
+        var cancelledName: String? = null
 
         override fun enqueueUniqueWork(
             name: String,
@@ -94,6 +95,10 @@ class WorkManagerFileIndexSchedulerTest {
             periodicRequest = request
         }
 
+        override fun cancelUniqueWork(name: String) {
+            cancelledName = name
+        }
+
         override fun observeUniqueWork(name: String): Flow<List<WorkInfo>> = flowOf(emptyList())
     }
 
@@ -113,6 +118,10 @@ class WorkManagerFileIndexSchedulerTest {
             policy: ExistingPeriodicWorkPolicy,
             request: PeriodicWorkRequest
         ) {
+            throw throwable
+        }
+
+        override fun cancelUniqueWork(name: String) {
             throw throwable
         }
 

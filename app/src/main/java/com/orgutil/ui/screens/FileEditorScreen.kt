@@ -26,7 +26,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.orgutil.R
 import com.orgutil.ui.components.OrgTopBar
 import com.orgutil.ui.components.OrgTopBarIcon
-import com.orgutil.ui.components.OrgMonoChip
 import com.orgutil.ui.components.OrgRenderer
 import com.orgutil.ui.theme.OrgMono
 import com.orgutil.ui.viewmodel.FileEditorViewModel
@@ -44,10 +43,10 @@ fun FileEditorScreen(
     val uiState by viewModel.uiState.collectAsState()
     val editorFocusRequester = remember { FocusRequester() }
     var editorValue by remember { mutableStateOf(TextFieldValue("")) }
-    
+
     // State for global fold toggle
     var globalFoldState by remember { mutableStateOf<Boolean?>(null) }
-    
+
     LaunchedEffect(fileUriString, highlightOffset, highlightLength, highlightQuery) {
         fileUriString?.let { encodedUriString ->
             try {
@@ -92,6 +91,12 @@ fun FileEditorScreen(
     }
 
     Scaffold(
+        // Edge-owning screen (direct nav destination, outside MainScreen's
+        // ime-lifted shell): consume navigationBars ∪ ime exactly once on
+        // the content so the multiline editor's caret stays visible above
+        // the keyboard (edge-to-edge ignores manifest adjustResize) without
+        // stacking nav+IME padding or wasting space when the IME is hidden.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             OrgTopBar(
                 title = "",
@@ -193,6 +198,7 @@ fun FileEditorScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
         ) {
             when {
                 uiState.isLoading -> {
@@ -240,7 +246,7 @@ fun FileEditorScreen(
                                 )
                             }
                         }
-                        
+
                         // Content area - either rendered view or text editor
                         if (uiState.isInViewMode) {
                             // Rendered org-mode view

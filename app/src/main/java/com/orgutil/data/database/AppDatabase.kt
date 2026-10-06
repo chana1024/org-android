@@ -7,11 +7,13 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.orgutil.data.database.dao.ChatDao
 import com.orgutil.data.database.dao.FileDao
 import com.orgutil.data.database.entity.ChatAuditLogEntity
+import com.orgutil.data.database.entity.ChatCompactionSummaryEntity
 import com.orgutil.data.database.entity.ChatMessageEntity
 import com.orgutil.data.database.entity.ChatSessionEntity
 import com.orgutil.data.database.entity.FileContentEntity
 import com.orgutil.data.database.entity.FileContentFtsEntity
 import com.orgutil.data.database.entity.FileMetadataEntity
+import com.orgutil.data.database.entity.LlmProviderProfileEntity
 
 @Database(
     entities = [
@@ -20,9 +22,11 @@ import com.orgutil.data.database.entity.FileMetadataEntity
         FileContentEntity::class,
         ChatSessionEntity::class,
         ChatMessageEntity::class,
-        ChatAuditLogEntity::class
+        ChatAuditLogEntity::class,
+        ChatCompactionSummaryEntity::class,
+        LlmProviderProfileEntity::class
     ],
-    version = 6,
+    version = 8,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -148,6 +152,28 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `chat_message` ADD COLUMN `toolUseId` TEXT")
                 db.execSQL("ALTER TABLE `chat_message` ADD COLUMN `toolUsesJson` TEXT")
+            }
+        }
+
+        /**
+         * v6 -> v7: multi-session run recovery + compaction + provider
+         * profiles. Statement list lives in [DbMigrationSql] (shared with the
+         * JVM migration test). Non-destructive: no existing row is touched.
+         */
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                DbMigrationSql.V6_TO_V7.forEach { db.execSQL(it) }
+            }
+        }
+
+        /**
+         * v7 -> v8: provider-native web search (statement list in
+         * [DbMigrationSql]). Pure column additions with defaults; existing
+         * profiles keep working with search off.
+         */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                DbMigrationSql.V7_TO_V8.forEach { db.execSQL(it) }
             }
         }
     }

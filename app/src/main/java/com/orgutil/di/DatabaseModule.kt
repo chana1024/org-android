@@ -29,7 +29,11 @@ object DatabaseModule {
         // 3 -> 4 is a real migration (preserves indexed content). Paths from
         // older versions (1/2) stay destructive: the DB holds only the
         // rebuildable search index, never user data.
-        .addMigrations(AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6)
+        .addMigrations(
+            AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5,
+            AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7,
+            AppDatabase.MIGRATION_7_8
+        )
         .fallbackToDestructiveMigration()
         .build()
         Log.d("DatabaseModule", "AppDatabase created successfully at: ${context.getDatabasePath("org-util-db").absolutePath}")

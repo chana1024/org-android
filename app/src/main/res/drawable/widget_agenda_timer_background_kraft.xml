@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- KRAFT LEDGER twin of widget_agenda_timer_background.xml — the widget
+     pomodoro card on the small-overlay #EEEAE0. (The floating break OVERLAY
+     window keeps its deliberate sky-blue; this is the in-widget card.) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#EEEAE0" />
+    <corners android:radius="14dp" />
+</shape>

@@ -54,6 +54,21 @@ class ChatCredentialStore @Inject constructor(
 
     fun isConfigured(): Boolean = getApiKey() != null
 
+    // ---- per-profile keys (secrets stay here, never in the Room profile) ----
+
+    fun storeProfileKey(profileId: String, key: String) {
+        prefs().edit { putString(profileKey(profileId), key.trim()) }
+    }
+
+    fun getProfileKey(profileId: String): String? =
+        prefs().getString(profileKey(profileId), null)?.trim()?.takeIf { it.isNotEmpty() }
+
+    fun clearProfileKey(profileId: String) {
+        prefs().edit { remove(profileKey(profileId)) }
+    }
+
+    private fun profileKey(profileId: String) = "${KEY_PROFILE_KEY_PREFIX}$profileId"
+
     private fun prefs(): SharedPreferences = securePrefs ?: fallbackPrefs
 
     companion object {
@@ -61,6 +76,7 @@ class ChatCredentialStore @Inject constructor(
         private const val SECURE_PREFS_FILE = "chat_secure_prefs"
         private const val KEY_API_KEY = "chat_llm_api_key"
         private const val KEY_MODEL = "chat_llm_model"
+        private const val KEY_PROFILE_KEY_PREFIX = "chat_profile_key_"
         const val DEFAULT_MODEL = "claude-sonnet-5"
     }
 }

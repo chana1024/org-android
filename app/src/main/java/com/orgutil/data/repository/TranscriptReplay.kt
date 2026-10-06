@@ -8,6 +8,7 @@ import com.orgutil.domain.chat.ToolUseBlock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
 /**
@@ -18,6 +19,13 @@ import kotlinx.serialization.json.JsonObject
  * call left without a persisted result (denied before execution, stop-button
  * void, crash mid-run) is synthesized as an error result instead of being
  * dropped - otherwise the whole replayed request would be rejected.
+ *
+ * Assistant turns that contained HOSTED (provider-side) search also carry
+ * their provider block array verbatim ([ChatMessageEntity.nativeBlocksJson]
+ * -> [LlmMessage.Assistant.nativeBlocks]) so the next request replays it
+ * exactly. Hosted-search tool rows themselves are intentionally NOT paired
+ * into tool_result messages: their ids never appear in any assistant
+ * [toolUsesJson], so they are skipped below like any other stray row.
  *
  * Pre-v6 rows (no [ChatMessageEntity.toolUsesJson] / [ChatMessageEntity.toolUseId])
  * replay as before: assistant text only, tool rows skipped.
@@ -60,12 +68,14 @@ internal object TranscriptReplay {
             when (message.role) {
                 "user" -> {
                     flushPendingExchange()
-                    result.add(LlmMessage.User(message.content))
+                    result.add(LlmMessage.User(ChatMessageContextCodec.forModel(message.content)))
                 }
                 "assistant" -> {
                     flushPendingExchange()
                     val uses = decodeToolUses(message.toolUsesJson)
-                    result.add(LlmMessage.Assistant(message.content, uses))
+                    result.add(
+                        LlmMessage.Assistant(message.content, uses, decodeNativeBlocks(message.nativeBlocksJson))
+                    )
                     pendingUses = uses
                 }
                 "tool" -> {
@@ -88,6 +98,12 @@ internal object TranscriptReplay {
         }.getOrDefault(emptyList())
     }
 
+    /** Provider blocks replay verbatim; invalid stored JSON degrades to null. */
+    private fun decodeNativeBlocks(nativeBlocksJson: String?): JsonElement? {
+        if (nativeBlocksJson == null) return null
+        return runCatching { json.parseToJsonElement(nativeBlocksJson) }.getOrNull()
+    }
+
     /** Executed calls replay their persisted result; the rest synthesize what the model would have seen. */
     private fun ChatMessageEntity.toToolResult(): ToolResultBlock {
         if (content.isNotBlank()) {
@@ -102,6 +118,12 @@ internal object TranscriptReplay {
             ApprovalState.DENIED -> "User declined this action." to true
             ApprovalState.VOIDED -> "Cancelled before execution." to true
             ApprovalState.PENDING -> "Interrupted: the approval was never resolved." to true
+            // FM-R3: the call was APPROVED and executing when the process
+            // died - the write/delete/git push may or may not have landed.
+            // State that honestly; never fabricate an outcome.
+            ApprovalState.APPROVED ->
+                "Execution state unknown: this tool call was in flight when the run ended; " +
+                    "it may or may not have completed. Check the affected file/git state before retrying." to true
             else -> "(interrupted: no result was recorded)" to true
         }
         return ToolResultBlock(toolUseId = toolUseId!!, toolName = toolName ?: "", content = text, isError = isError)

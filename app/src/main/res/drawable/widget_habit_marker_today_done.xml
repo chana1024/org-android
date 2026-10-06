@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TODAY + done: the full-cell TODAY outline plus the same 5dp centered
+     dot as any other completed day, so the done state stays independently
+     readable on the current day. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/widget_habit_today_outline_white" />
+    <item
+        android:drawable="@drawable/widget_habit_today_outline_dark"
+        android:top="1dp"
+        android:bottom="1dp"
+        android:left="1dp"
+        android:right="1dp" />
+    <item
+        android:gravity="center"
+        android:width="5dp"
+        android:height="5dp">
+        <shape android:shape="oval">
+            <solid android:color="#172624" />
+        </shape>
+    </item>
+</layer-list>

@@ -125,7 +125,13 @@ class TranscriptReplayTest {
         val results = replayed[2] as LlmMessage.ToolResults
         assertEquals("Cancelled before execution.", resultOf(results, "tu_1").content)
         assertEquals("Interrupted: the approval was never resolved.", resultOf(results, "tu_2").content)
-        assertEquals("(interrupted: no result was recorded)", resultOf(results, "tu_3").content)
+        // FM-R3: an approved call with no recorded result was in flight when
+        // the process died - the model must be told the state is UNKNOWN,
+        // never a fabricated success or a plain "no result".
+        val unknown = resultOf(results, "tu_3")
+        assertTrue(unknown.isError)
+        assertTrue(unknown.content.contains("Execution state unknown"))
+        assertTrue(unknown.content.contains("may or may not have completed"))
     }
 
     @Test

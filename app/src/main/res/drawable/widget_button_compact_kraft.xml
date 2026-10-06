@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- KRAFT LEDGER twin of widget_button_compact.xml (quick-capture button) —
+     primary/button #34302A (pressed #26231D) with a light #F2EEE4 icon tint
+     set on the layout; same layered press geometry. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <layer-list>
+            <!-- Pressed shadow -->
+            <item android:top="1dp" android:left="1dp" android:right="1dp" android:bottom="1dp">
+                <shape android:shape="rectangle">
+                    <solid android:color="#33000000" />
+                    <corners android:radius="13dp" />
+                </shape>
+            </item>
+            <!-- Pressed button -->
+            <item android:bottom="1dp" android:right="1dp">
+                <shape android:shape="rectangle">
+                    <solid android:color="#26231D" />
+                    <corners android:radius="12dp" />
+                    <stroke android:width="1dp" android:color="#B5AD9B" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+    <item>
+        <layer-list>
+            <!-- Normal shadow -->
+            <item android:top="2dp" android:left="2dp" android:right="2dp" android:bottom="2dp">
+                <shape android:shape="rectangle">
+                    <solid android:color="#33000000" />
+                    <corners android:radius="14dp" />
+                </shape>
+            </item>
+            <!-- Normal button -->
+            <item android:bottom="2dp" android:right="2dp">
+                <shape android:shape="rectangle">
+                    <solid android:color="#34302A" />
+                    <corners android:radius="12dp" />
+                    <stroke android:width="1dp" android:color="#B5AD9B" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+</selector>

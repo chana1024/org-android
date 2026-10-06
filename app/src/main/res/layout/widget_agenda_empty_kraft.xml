@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- KRAFT LEDGER twin of widget_agenda_empty.xml — structure and view IDs are IDENTICAL; only colors/drawables differ. Any structural edit must be applied to BOTH files. Generated from the classic original by palette substitution.  -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_agenda_empty_text"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:paddingTop="7dp"
+    android:paddingBottom="7dp"
+    android:textColor="#5A5446"
+    android:textSize="12sp" />

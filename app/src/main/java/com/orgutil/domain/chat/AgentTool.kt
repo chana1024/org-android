@@ -39,6 +39,13 @@ sealed class ToolResult {
 }
 
 /**
+ * Per-run execution context. Lets session-scoped tools (e.g. org_integrate,
+ * whose authority comes from this run's persisted skill selection) find the
+ * owning session without any mutable global state.
+ */
+data class ToolExecutionContext(val sessionId: String)
+
+/**
  * A capability the agent may call. Registration IS the capability boundary:
  * whatever is not in the registry simply does not exist for the agent
  * (bash, out-of-tree paths, etc. are deliberately not registered).
@@ -54,6 +61,14 @@ interface AgentTool {
     fun describeArgs(args: JsonObject): String
 
     suspend fun execute(args: JsonObject): ToolResult
+
+    /**
+     * Session-aware entry point the agent loop actually calls. Tools that
+     * need the owning session override this; the default keeps plain tools
+     * source-compatible.
+     */
+    suspend fun execute(args: JsonObject, context: ToolExecutionContext): ToolResult =
+        execute(args)
 }
 
 /** Thrown by tools on invalid arguments (bad path, missing field, ...). */

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MISSED marker: a two-tone × (white halo stroke under a dark core
+     stroke — the same trick as widget_habit_marker_today's outline) so
+     the cross reads on the brick-red missed fill and on any face color.
+     Geometry mirrors AgendaScreen.HabitMissedCross (arm inset by half the
+     halo so the round caps stay inside the cell). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="12dp"
+    android:height="12dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M7,7 L17,17 M17,7 L7,17"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M7,7 L17,17 M17,7 L7,17"
+        android:strokeColor="#172624"
+        android:strokeWidth="3.4"
+        android:strokeLineCap="round" />
+</vector>
