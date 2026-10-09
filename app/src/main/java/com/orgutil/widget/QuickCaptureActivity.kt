@@ -20,12 +20,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.orgutil.ui.screens.CaptureOptionsDraft
+import com.orgutil.ui.screens.CaptureOptionsPanel
+import com.orgutil.ui.screens.buildOptions
+import com.orgutil.ui.screens.draftError
 import com.orgutil.ui.theme.OrgUtilTheme
 import com.orgutil.ui.theme.ThemeController
 import com.orgutil.ui.viewmodel.CaptureViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -74,9 +79,16 @@ fun QuickCaptureDialog(
     viewModel: CaptureViewModel = hiltViewModel()
 ) {
     var inputText by remember { mutableStateOf("") }
+    var optionsDraft by remember { mutableStateOf(CaptureOptionsDraft()) }
     val uiState by viewModel.uiState.collectAsState()
-    val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
+
+    // The draft defaults to the plain capture of old; the panel below owns
+    // the optional TODO state / SCHEDULED / habit decorations.
+    val builtOptions = optionsDraft.buildOptions()
+    val optionsError = optionsDraft.draftError(inputText)
+    val canSave = inputText.isNotBlank() && !uiState.isLoading &&
+        builtOptions != null && optionsError == null
 
     LaunchedEffect(Unit) {
         delay(100)
@@ -92,7 +104,12 @@ fun QuickCaptureDialog(
             )
         },
         text = {
-            Column {
+            // Scrollable so the input + option rows + status all fit above the
+            // IME and at large font scales, in both the classic and Kraft themes.
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 OutlinedTextField(
                     value = inputText,
                     onValueChange = { inputText = it },
@@ -102,13 +119,18 @@ fun QuickCaptureDialog(
                     placeholder = {
                         Text("输入您的想法或待办事项...")
                     },
-                    minLines = 3,
-                    maxLines = 6,
+                    minLines = 2,
+                    maxLines = 5,
                     shape = RoundedCornerShape(12.dp)
                 )
 
+                CaptureOptionsPanel(
+                    draft = optionsDraft,
+                    onDraftChange = { optionsDraft = it },
+                    inputText = inputText
+                )
+
                 uiState.error?.let { error ->
-                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = error,
                         color = MaterialTheme.colorScheme.error,
@@ -117,7 +139,6 @@ fun QuickCaptureDialog(
                 }
 
                 uiState.successMessage?.let { message ->
-                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = message,
                         style = MaterialTheme.typography.bodyMedium,
@@ -130,18 +151,17 @@ fun QuickCaptureDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    if (inputText.isNotBlank()) {
-                        scope.launch {
-                            viewModel.addToCaptureFile(inputText.trim())
-                            // 等待操作完成后再关闭
-                            delay(1500) // 给用户看到成功消息的时间
-                            if (uiState.successMessage != null) {
-                                onCapture(inputText.trim())
-                            }
+                    val options = builtOptions ?: return@Button
+                    val content = inputText.trim()
+                    if (content.isNotBlank()) {
+                        // Close on the ACTUAL save outcome — never a timer or
+                        // a stale snapshot; a failed write keeps the draft.
+                        viewModel.addToCaptureFile(content, options) { saved ->
+                            if (saved) onCapture(content)
                         }
                     }
                 },
-                enabled = inputText.isNotBlank() && !uiState.isLoading
+                enabled = canSave
             ) {
                 if (uiState.isLoading) {
                     CircularProgressIndicator(

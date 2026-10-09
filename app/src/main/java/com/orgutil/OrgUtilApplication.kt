@@ -75,7 +75,7 @@ class OrgUtilApplication: Application(), Configuration.Provider {
     private fun scheduleStartupSync() {
         // Fire-and-forget: unique work with KEEP coalesces with any pending sync,
         // and the NetworkType.CONNECTED constraint parks it while offline.
-        when (val result = gitSyncScheduler.requestSyncIfConfigured()) {
+        when (val result = gitSyncScheduler.requestStartupSyncIfConfigured()) {
             GitSyncRequestResult.Enqueued -> {
                 safeLogD("OrgUtilApplication", "Startup git sync scheduled")
             }

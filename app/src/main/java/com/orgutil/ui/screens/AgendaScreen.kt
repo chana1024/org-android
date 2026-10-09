@@ -622,6 +622,9 @@ private fun AgendaContent(
     // below settles against it, so a frame composed before the widget's
     // mode switch lands is skipped rather than misread as "entry missing".
     val composedMode = uiState.selectedMode
+    // Daily gets the Overdue group in both surfaces (app + widget);
+    // sectionsFor drops every group with no entries, so no empty header
+    // or placeholder ever renders.
     val sections = agenda.sectionsFor(uiState.selectedMode)
     val listState = rememberLazyListState()
     val targetSection = sections.firstOrNull { it.title == widgetRequest?.sectionTitle }
@@ -948,14 +951,7 @@ private fun AgendaSectionCard(
                 )
             }
             if (expanded) {
-                if (section.entries.isEmpty()) {
-                    Text(
-                        text = section.emptyText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                    )
-                } else if (section.hierarchical) {
+                if (section.hierarchical) {
                     // GTD Projects / GTD Areas: one branch per root; descendants
                     // render nested inside their parent, never as peer rows.
                     section.entries.forEachIndexed { index, root ->
@@ -2346,43 +2342,49 @@ private fun AgendaError(
 internal data class AgendaSection(
     val title: String,
     val entries: List<OrgAgendaEntry>,
-    val emptyText: String,
     /** GTD Projects / GTD Areas: entries are branch roots rendered with descendants. */
     val hierarchical: Boolean = false
 )
 
+/**
+ * Sections for one agenda mode, shared by the app and the widget.
+ * Overdue is Daily-only (both surfaces); Weekly/Projects/Areas keep their
+ * own sections. Groups with no entries are never surfaced — the filter
+ * drops them so neither surface renders an empty header or placeholder.
+ */
 internal fun OrgAgenda.sectionsFor(mode: AgendaViewMode): List<AgendaSection> {
     // Section order and headers mirror the Doom org-agenda-custom-commands
     // ("d" Daily Dashboard / "w" Weekly Review); filters mirror the builder.
-    return when (mode) {
+    val sections = when (mode) {
         AgendaViewMode.DAILY -> listOf(
-            AgendaSection("Today", daily.today, "No planned items for today"),
-            AgendaSection("Next actions", daily.nextActions, "No unplanned next actions"),
-            AgendaSection("Vibing", daily.vibing, "No vibing items"),
-            AgendaSection("Sandbagging", daily.sandbagging, "No unplanned sandbagging items"),
-            AgendaSection("Waiting / follow-up", daily.waiting, "No unplanned waiting items"),
-            AgendaSection("Done", daily.done, "No done items"),
-            AgendaSection("Cancelled / dropped", daily.cancelledDropped, "No cancelled or dropped items"),
-            AgendaSection("Inbox to clarify", daily.inbox, "Inbox is empty")
+            AgendaSection("Overdue", daily.overdue),
+            AgendaSection("Today", daily.today),
+            AgendaSection("Next actions", daily.nextActions),
+            AgendaSection("Vibing", daily.vibing),
+            AgendaSection("Sandbagging", daily.sandbagging),
+            AgendaSection("Waiting / follow-up", daily.waiting),
+            AgendaSection("Done", daily.done),
+            AgendaSection("Cancelled / dropped", daily.cancelledDropped),
+            AgendaSection("Inbox to clarify", daily.inbox)
         )
 
         AgendaViewMode.WEEKLY -> listOf(
-            AgendaSection("Next 14 days", weekly.nextDays, "No planned items in the next 14 days"),
-            AgendaSection("Stuck Projects", weekly.stuckProjects, "No stuck projects"),
-            AgendaSection("Vibing", weekly.vibing, "No vibing items"),
-            AgendaSection("Sandbagging", weekly.sandbagging, "No sandbagging items"),
-            AgendaSection("Waiting", weekly.waiting, "No waiting items"),
-            AgendaSection("On hold", weekly.hold, "No hold items"),
-            AgendaSection("Someday / Maybe", weekly.maybe, "No someday items"),
-            AgendaSection("Inbox", weekly.inbox, "Inbox is empty")
+            AgendaSection("Next 14 days", weekly.nextDays),
+            AgendaSection("Stuck Projects", weekly.stuckProjects),
+            AgendaSection("Vibing", weekly.vibing),
+            AgendaSection("Sandbagging", weekly.sandbagging),
+            AgendaSection("Waiting", weekly.waiting),
+            AgendaSection("On hold", weekly.hold),
+            AgendaSection("Someday / Maybe", weekly.maybe),
+            AgendaSection("Inbox", weekly.inbox)
         )
 
         AgendaViewMode.PROJECTS -> listOf(
             AgendaSection(
-                "GTD Projects", projectControl.projects, "No projects",
+                "GTD Projects", projectControl.projects,
                 hierarchical = true
             ),
-            AgendaSection("Stuck Projects", projectControl.stuckProjects, "No stuck projects")
+            AgendaSection("Stuck Projects", projectControl.stuckProjects)
         )
 
         AgendaViewMode.AREAS -> listOf(
@@ -2390,12 +2392,13 @@ internal fun OrgAgenda.sectionsFor(mode: AgendaViewMode): List<AgendaSection> {
             // their full descendant branches (indentation, collapse/expand,
             // per-heading keyword editing and quick actions).
             AgendaSection(
-                "GTD Areas", areaControl.areaRoots, "No areas",
+                "GTD Areas", areaControl.areaRoots,
                 hierarchical = true
             ),
-            AgendaSection("Neglected Areas", areaControl.neglectedAreas, "No neglected areas")
+            AgendaSection("Neglected Areas", areaControl.neglectedAreas)
         )
     }
+    return sections.filter { it.entries.isNotEmpty() }
 }
 
 private val HEADER_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, MMM dd")

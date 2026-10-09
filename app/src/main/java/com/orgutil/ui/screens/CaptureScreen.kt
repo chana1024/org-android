@@ -1,7 +1,9 @@
 package com.orgutil.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -33,7 +35,15 @@ fun CaptureScreen(
     viewModel: CaptureViewModel = hiltViewModel()
 ) {
     var inputText by remember { mutableStateOf("") }
+    var optionsDraft by remember { mutableStateOf(CaptureOptionsDraft()) }
     val uiState by viewModel.uiState.collectAsState()
+
+    // Fast entry stays fast: the draft defaults to the plain capture of old
+    // (no keyword, no SCHEDULED, no habit) and is only what the user set.
+    val builtOptions = optionsDraft.buildOptions()
+    val optionsError = optionsDraft.draftError(inputText)
+    val canSave = inputText.isNotBlank() && !uiState.isLoading &&
+        builtOptions != null && optionsError == null
 
     Scaffold(
         // Edge-owning screen (direct nav destination, outside MainScreen's
@@ -75,6 +85,19 @@ fun CaptureScreen(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
                     unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                 )
+            )
+
+            // Optional decorations (TODO state / SCHEDULED / habit): bounded
+            // and internally scrollable so the tall input and the button keep
+            // their places at any font scale.
+            CaptureOptionsPanel(
+                draft = optionsDraft,
+                onDraftChange = { optionsDraft = it },
+                inputText = inputText,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 260.dp)
+                    .verticalScroll(rememberScrollState())
             )
 
             // Inline status — a single quiet line, no cards
@@ -120,15 +143,23 @@ fun CaptureScreen(
 
             Button(
                 onClick = {
-                    if (inputText.isNotBlank()) {
-                        viewModel.addToCaptureFile(inputText.trim())
-                        inputText = ""
+                    val options = builtOptions ?: return@Button
+                    val content = inputText.trim()
+                    if (content.isNotBlank()) {
+                        // Clear the draft ONLY on the actual save outcome, so
+                        // a failed write keeps both text and options.
+                        viewModel.addToCaptureFile(content, options) { saved ->
+                            if (saved) {
+                                inputText = ""
+                                optionsDraft = CaptureOptionsDraft()
+                            }
+                        }
                     }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                enabled = inputText.isNotBlank() && !uiState.isLoading,
+                enabled = canSave,
                 shape = RoundedCornerShape(8.dp)
             ) {
                 if (uiState.isLoading) {

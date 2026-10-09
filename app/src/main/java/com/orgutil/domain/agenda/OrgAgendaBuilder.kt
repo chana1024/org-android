@@ -1,6 +1,7 @@
 package com.orgutil.domain.agenda
 
 import java.time.LocalDate
+import java.time.LocalTime
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -44,11 +45,16 @@ class OrgAgendaBuilder @Inject constructor() {
                 // parsed TODO keyword only (canonical DONE_KEYWORDS), never
                 // tags or done-today log lines — a habit whose repeater
                 // already reset it to an active keyword stays on Today.
-                today = allEntries.filter {
-                    (it.hasPlanningOn(today) || it.isHabitDue(today)) &&
-                        it.todo !in EXCLUDED_FROM_DAY_AGENDA &&
-                        (it.todo == null || it.todo !in OrgAgendaParser.DONE_KEYWORDS)
-                },
+                today = allEntries.filter { it.isInTodayAgenda(today) }
+                    .sortedWith(todayOrdering()),
+                // Overdue: unfinished entries with at least one own planning
+                // date strictly before today that no other Daily section
+                // surfaces (see isOverdue). Rendered as its own collapsible
+                // group at the top of the Daily view in the app and the
+                // widget alike — Weekly never shows it, and it is not part
+                // of the Today/goal-stats totals.
+                overdue = allEntries.filter { it.isOverdue(today) }
+                    .sortedBy { it.oldestOverdueDate(today) },
                 nextActions = allEntries.filter { it.todo == "NEXT" && !it.isPlanned },
                 // Vibing keeps planned items visible (Doom shows the planned
                 // date in the prefix); Sandbagging skips planned items.
@@ -157,6 +163,65 @@ class OrgAgendaBuilder @Inject constructor() {
     private fun OrgAgendaEntry.hasPlanningOn(date: LocalDate): Boolean {
         return planningDates().any { it == date }
     }
+
+    /**
+     * Today's exact membership rule, shared by the Today section and the
+     * Overdue dedup so the two can never disagree about who is on Today:
+     * planned or habit-due today, not SANDBAGGING/VIBING, not a completed
+     * keyword.
+     */
+    private fun OrgAgendaEntry.isInTodayAgenda(today: LocalDate): Boolean {
+        return (hasPlanningOn(today) || isHabitDue(today)) &&
+            todo !in EXCLUDED_FROM_DAY_AGENDA &&
+            (todo == null || todo !in OrgAgendaParser.DONE_KEYWORDS)
+    }
+
+    /**
+     * Overdue membership for the Daily view's Overdue group. An entry
+     * qualifies when ALL hold:
+     * - at least one own planning date (SCHEDULED/DEADLINE/timestamp) is
+     *   strictly before today;
+     * - it is unfinished — DONE/CANCELLED/DROPPED (canonical DONE_KEYWORDS)
+     *   stay in the Done / Cancelled-dropped blocks;
+     * - it is not a habit — an overdue habit repeater already stays on Today
+     *   (see [isHabitDue]) and shows its missed dates on the habit graph;
+     * - it is not VIBING — the Vibing section already shows planned and
+     *   unplanned Vibing entries alike;
+     * - it is not an inbox capture — the Inbox section shows those whatever
+     *   their dates (same already-visible rationale as VIBING);
+     * - it is not already on Today — an entry with one planning date in the
+     *   past AND another today renders there, never as a second row.
+     * Planned WAIT and planned SANDBAGGING DO qualify: their Daily sections
+     * list only unplanned items, so these would otherwise be invisible.
+     */
+    private fun OrgAgendaEntry.isOverdue(today: LocalDate): Boolean {
+        return planningDates().any { it.isBefore(today) } &&
+            (todo == null || todo !in OrgAgendaParser.DONE_KEYWORDS) &&
+            habit == null &&
+            todo != "VIBING" &&
+            !isInboxCapture() &&
+            !isInTodayAgenda(today)
+    }
+
+    /**
+     * Oldest own planning date strictly before today — the Overdue sort key.
+     * Only called for [isOverdue] entries, where at least one such date
+     * exists.
+     */
+    private fun OrgAgendaEntry.oldestOverdueDate(today: LocalDate): LocalDate =
+        planningDates().filter { it.isBefore(today) }.min()
+
+    /**
+     * Today renders cycle-less (ordinary planned) entries ahead of habit
+     * entries; within each group rows go by the planning stamp's time-of-day
+     * (SCHEDULED first, DEADLINE as fallback), ascending like Org's day time
+     * grid. Entries with no time-of-day sort behind the timed ones and keep
+     * their file order — sortedWith is stable, so equal keys never reshuffle.
+     */
+    private fun todayOrdering(): Comparator<OrgAgendaEntry> = compareBy(
+        { it.habit != null },
+        { it.scheduledTime ?: it.deadlineTime ?: LocalTime.MAX }
+    )
 
     /**
      * A habit stays on today's agenda while its scheduled occurrence is

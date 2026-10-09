@@ -14,6 +14,7 @@ import com.orgutil.domain.sync.GitSyncStatus
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,18 +30,42 @@ class WorkManagerGitSyncScheduler internal constructor(
     ) : this(AndroidxWorkManagerGateway(context), configStore)
 
     override fun requestSync(): GitSyncRequestResult {
+        return enqueueSync(ExistingWorkPolicy.KEEP)
+    }
+
+    override fun requestSyncIfConfigured(): GitSyncRequestResult {
+        if (!isSyncConfigured()) return GitSyncRequestResult.NotConfigured
         return runCatching {
-            val syncRequest = OneTimeWorkRequestBuilder<GitSyncWorker>()
-                .setConstraints(
-                    Constraints.Builder()
-                        .setRequiredNetworkType(NetworkType.CONNECTED)
-                        .build()
-                )
-                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, java.util.concurrent.TimeUnit.SECONDS)
+            val debounceRequest = OneTimeWorkRequestBuilder<GitSyncDebounceWorker>()
+                .setInitialDelay(DEBOUNCE_DELAY_MINUTES, TimeUnit.MINUTES)
                 .build()
             workManagerGateway.enqueueUniqueWork(
+                DEBOUNCE_WORK_NAME,
+                ExistingWorkPolicy.REPLACE,
+                debounceRequest
+            )
+            GitSyncRequestResult.Enqueued
+        }.getOrElse {
+            GitSyncRequestResult.Failed(it.message ?: "Unknown scheduling failure")
+        }
+    }
+
+    override fun requestStartupSyncIfConfigured(): GitSyncRequestResult {
+        if (!isSyncConfigured()) return GitSyncRequestResult.NotConfigured
+        return requestSync()
+    }
+
+    override fun requestSyncAfterDebounce(): GitSyncRequestResult {
+        if (!isSyncConfigured()) return GitSyncRequestResult.NotConfigured
+        return enqueueSync(ExistingWorkPolicy.APPEND_OR_REPLACE)
+    }
+
+    private fun enqueueSync(policy: ExistingWorkPolicy): GitSyncRequestResult {
+        return runCatching {
+            val syncRequest = buildSyncRequest()
+            workManagerGateway.enqueueUniqueWork(
                 UNIQUE_WORK_NAME,
-                ExistingWorkPolicy.KEEP,
+                policy,
                 syncRequest
             )
             GitSyncRequestResult.Enqueued
@@ -49,10 +74,17 @@ class WorkManagerGitSyncScheduler internal constructor(
         }
     }
 
-    override fun requestSyncIfConfigured(): GitSyncRequestResult {
-        if (!configStore.isConfigured()) return GitSyncRequestResult.NotConfigured
-        if (!configStore.isAutoSyncEnabled()) return GitSyncRequestResult.NotConfigured
-        return requestSync()
+    private fun buildSyncRequest() = OneTimeWorkRequestBuilder<GitSyncWorker>()
+        .setConstraints(
+            Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build()
+        )
+        .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+        .build()
+
+    private fun isSyncConfigured(): Boolean {
+        return configStore.isConfigured() && configStore.isAutoSyncEnabled()
     }
 
     override fun observeSync(): Flow<GitSyncStatus> {
@@ -102,5 +134,7 @@ class WorkManagerGitSyncScheduler internal constructor(
 
     companion object {
         private const val UNIQUE_WORK_NAME = "git_sync"
+        private const val DEBOUNCE_WORK_NAME = "git_sync_debounce"
+        private const val DEBOUNCE_DELAY_MINUTES = 1L
     }
 }

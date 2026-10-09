@@ -6,19 +6,24 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.orgutil.domain.model.OrgDocument
 import com.orgutil.domain.search.SearchPreviewBuilder
+import com.orgutil.domain.sync.GitSyncRequestResult
+import com.orgutil.domain.sync.GitSyncScheduler
+import com.orgutil.domain.sync.GitSyncStatus
 import com.orgutil.domain.usecase.ReadOrgFileUseCase
 import com.orgutil.domain.usecase.SaveOrgFileUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class FileEditorViewModel @Inject constructor(
     private val readOrgFileUseCase: ReadOrgFileUseCase,
-    private val saveOrgFileUseCase: SaveOrgFileUseCase
+    private val saveOrgFileUseCase: SaveOrgFileUseCase,
+    private val gitSyncScheduler: GitSyncScheduler = NoOpGitSyncScheduler
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(FileEditorUiState())
@@ -90,6 +95,7 @@ class FileEditorViewModel @Inject constructor(
                 .onSuccess {
                     Log.d("FileEditorViewModel", "Save SUCCESS - updating UI state")
                     Log.d("FileEditorViewModel", "Setting hasUnsavedChanges=false, saveSuccess=true")
+                    runCatching { gitSyncScheduler.requestSyncIfConfigured() }
                     // updatedDocument only swapped the raw text: its nodes
                     // are still the parse of the PRE-SAVE content, so VIEW
                     // mode would keep rendering the stale tree. Re-read the
@@ -161,6 +167,12 @@ class FileEditorViewModel @Inject constructor(
         val end = (start + length).coerceAtMost(content.length)
         return start to end
     }
+}
+
+private object NoOpGitSyncScheduler : GitSyncScheduler {
+    override fun requestSync() = GitSyncRequestResult.NotConfigured
+    override fun requestSyncIfConfigured() = GitSyncRequestResult.NotConfigured
+    override fun observeSync() = flowOf(GitSyncStatus.Idle)
 }
 
 data class FileEditorUiState(

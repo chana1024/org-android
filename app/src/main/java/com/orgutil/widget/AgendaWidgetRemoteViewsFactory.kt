@@ -244,6 +244,8 @@ internal class AgendaWidgetRemoteViewsFactory(
     }
 
     private fun buildRows(sections: List<AgendaSection>): List<Row> = buildList {
+        // sectionsFor already drops empty groups (app and widget alike), so
+        // every section here has entries — no per-section placeholder rows.
         sections.forEach { section ->
             add(Row.Section(section, "section:${section.title}".stableId()))
             val entries = if (section.hierarchical) {
@@ -251,11 +253,7 @@ internal class AgendaWidgetRemoteViewsFactory(
             } else {
                 section.entries.map { Row.Entry(it, section.title, 0, entryStableId(it, section.title)) }
             }
-            if (entries.isEmpty()) {
-                add(Row.Message(section.emptyText, "empty:${section.title}".stableId()))
-            } else {
-                addAll(entries)
-            }
+            addAll(entries)
         }
     }
 

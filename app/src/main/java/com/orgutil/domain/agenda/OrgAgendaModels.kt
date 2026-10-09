@@ -79,11 +79,19 @@ data class OrgAgenda(
 
 /**
  * Daily sections mirror the Doom "Daily Dashboard" custom agenda command:
- * Today / Next actions / Vibing / Sandbagging / Waiting / Done /
- * Cancelled-dropped / Inbox, in that order.
+ * Overdue / Today / Next actions / Vibing / Sandbagging / Waiting /
+ * Done / Cancelled-dropped / Inbox, in that order.
  */
 data class DailyAgenda(
     val today: List<OrgAgendaEntry>,
+    /**
+     * Unfinished entries carrying at least one own planning date strictly
+     * before today that no other Daily section surfaces (full rule:
+     * OrgAgendaBuilder.isOverdue). Rendered as its own collapsible group at
+     * the top of the Daily view in the app and the widget alike — never in
+     * Weekly, and not part of the Today/goal-stats totals.
+     */
+    val overdue: List<OrgAgendaEntry>,
     val nextActions: List<OrgAgendaEntry>,
     val vibing: List<OrgAgendaEntry>,
     val sandbagging: List<OrgAgendaEntry>,
